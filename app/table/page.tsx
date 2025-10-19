@@ -1,0 +1,140 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { createColumnHelper, type ColumnDef } from "@tanstack/react-table";
+import { DataTable } from "@/components/data-table";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { MoreHorizontal } from "lucide-react";
+
+export default function TablePage() {
+  const [data, setData] = useState<any[]>([]);
+  const [columns, setColumns] = useState<ColumnDef<any>[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        // Example API call (you can replace this with your real API)
+        const res = await fetch("https://jsonplaceholder.typicode.com/users");
+        const json = await res.json();
+
+        // Normalize data (optional)
+        const normalized = json.map((item: any) => ({
+          id: item.id,
+          name: item.name,
+          email: item.email,
+          city: item.address.city,
+          zipcode: item.address.zipcode,
+          createdAt: item.address.street,
+        }));
+
+        setData(normalized);
+
+        // Dynamically create columns
+        if (normalized.length > 0) {
+          const keys = Object.keys(normalized[0]);
+          const dynamicColumns: ColumnDef<any>[] = keys.map((key) => {
+            const column: ColumnDef<any> = {
+              accessorKey: key,
+              header: key.charAt(0).toUpperCase() + key.slice(1),
+            };
+
+            if (key === "zipcode") {
+              column.filterFn = (row, columnId, filterValue) => {
+                const rowValue = row.getValue(columnId) as string;
+                if (
+                  !filterValue ||
+                  (Array.isArray(filterValue) && filterValue.length === 0)
+                ) {
+                  return true; // no filter applied
+                }
+                if (Array.isArray(filterValue)) {
+                  // MULTI-SELECT support
+                  return filterValue.includes(rowValue);
+                }
+                // SINGLE SELECT support
+                return rowValue === filterValue;
+              };
+            }
+
+            return column;
+          });
+          setColumns(dynamicColumns);
+        }
+
+        setLoading(false);
+      } catch (error) {
+        console.error("Failed to load data:", error);
+      }
+    }
+
+    fetchData();
+  }, []);
+
+  if (loading) return <p className="p-8">Loading...</p>;
+
+  return (
+    <div className="p-8">
+      <h1 className="text-xl font-bold mb-4">Dynamic Table</h1>
+      <DataTable
+        columns={columns}
+        data={data}
+        enableRowSelection={true}
+        renderRowActions={(row) => (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" variant="ghost">
+                <MoreHorizontal />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => console.log("Edit", row)}>
+                Edit
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => console.log("Delete", row)}>
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+        filterConfig={[
+          {
+            column: "name",
+            type: "text",
+            placeholder: "Search name...",
+          },
+          {
+            column: "zipcode",
+            type: "select",
+            isSearchable: true,
+            isMulti: true,
+            options: [
+              { label: "Zip Code", value: "" },
+              { label: "92998-3874", value: "92998-3874" },
+              { label: "90566-7771", value: "90566-7771" },
+            ],
+          },
+          {
+            column: "email",
+            type: "select",
+            options: [
+              { label: "All Status", value: "" },
+              { label: "Active", value: "true" },
+              { label: "Inactive", value: "false" },
+            ],
+          },
+          {
+            column: "createdAt",
+            type: "date",
+          },
+        ]}
+      />
+    </div>
+  );
+}
