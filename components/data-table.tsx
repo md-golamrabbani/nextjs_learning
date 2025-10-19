@@ -43,6 +43,7 @@ import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
+import { BiSortDown, BiSortUp } from "react-icons/bi";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { format } from "date-fns";
 import { Calendar } from "./ui/calendar";
@@ -570,13 +571,14 @@ export function DataTable<TData extends Record<string, any>, TValue>({
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {enableRowSelection && (
-                  <TableHead className="w-8">
+                  <TableHead className="w-8 uppercase text-sm bg-accent">
                     <Checkbox
                       checked={table.getIsAllRowsSelected()}
                       onCheckedChange={(value) =>
                         table.toggleAllRowsSelected(!!value)
                       }
                       aria-label="Select all rows"
+                      className="bg-white"
                       ref={(el) => {
                         if (el)
                           (el as any).indeterminate =
@@ -592,7 +594,7 @@ export function DataTable<TData extends Record<string, any>, TValue>({
                     <TableHead
                       key={header.id}
                       onClick={header.column.getToggleSortingHandler()}
-                      className={`cursor-pointer select-none ${
+                      className={`cursor-pointer select-none uppercase text-sm bg-accent ${
                         isActionCol ? "text-right" : ""
                       }`}
                     >
@@ -605,9 +607,9 @@ export function DataTable<TData extends Record<string, any>, TValue>({
                           header.column.columnDef.header,
                           header.getContext()
                         )}
-                        {isSorted === "asc" && <ArrowUp className="h-4 w-4" />}
+                        {isSorted === "asc" && <BiSortUp className="h-4 w-4" />}
                         {isSorted === "desc" && (
-                          <ArrowDown className="h-4 w-4" />
+                          <BiSortDown className="h-4 w-4" />
                         )}
                         {!isSorted && (
                           <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
