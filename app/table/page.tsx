@@ -1,24 +1,23 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createColumnHelper, type ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/app/components/table/DataTable";
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { MoreHorizontal } from "lucide-react";
-import { DeleteDialog } from "../components/table/DeleteDialog";
 import { RowActions } from "../components/table/RowActions";
 import { DataTableSkeleton } from "../components/table/DataTableSkeleton";
+import { ColumnDef } from "@tanstack/react-table";
 
 export default function TablePage() {
   const [data, setData] = useState<any[]>([]);
   const [columns, setColumns] = useState<ColumnDef<any>[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const customHeaderSpans = {
+    name: { colSpan: 2 },
+  };
+
+  const customBodySpans = {
+    "0": { name: { colSpan: 2 } },
+  };
 
   useEffect(() => {
     async function fetchData() {
@@ -106,6 +105,8 @@ export default function TablePage() {
       <DataTable
         columns={columns}
         data={data}
+        // headerColSpans={customHeaderSpans}
+        // rowColSpans={customBodySpans}
         enableRowSelection={true}
         onBulkDelete={handleBulkDelete}
         renderRowActions={(row) => (

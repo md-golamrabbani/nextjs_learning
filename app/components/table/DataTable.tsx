@@ -87,9 +87,28 @@ interface FilterConfig {
   onChange?: (value: any, allFilters: Record<string, any>) => void;
 }
 
+interface CellSpan {
+  rowSpan?: number;
+  colSpan?: number;
+}
+
+// For body rows
+interface RowColSpans {
+  [rowId: string]: {
+    [columnId: string]: CellSpan;
+  };
+}
+
+// For header
+interface HeaderColSpans {
+  [columnId: string]: CellSpan;
+}
+
 interface DataTableProps<TData extends Record<string, any>, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
+  rowColSpans?: RowColSpans;
+  headerColSpans?: HeaderColSpans;
   filterConfig?: FilterConfig[];
   enableRowSelection?: boolean;
   renderRowActions?: (row: TData) => React.ReactNode;
@@ -99,6 +118,8 @@ interface DataTableProps<TData extends Record<string, any>, TValue> {
 export function DataTable<TData extends Record<string, any>, TValue>({
   columns,
   data,
+  rowColSpans,
+  headerColSpans,
   filterConfig,
   enableRowSelection,
   renderRowActions,
@@ -658,10 +679,14 @@ export function DataTable<TData extends Record<string, any>, TValue>({
       <div className="rounded-md border overflow-x-auto">
         <Table>
           <TableHeader>
-            {table.getHeaderGroups().map((headerGroup) => (
+            {table.getHeaderGroups().map((headerGroup, hgIndex) => (
               <TableRow key={headerGroup.id}>
                 {enableRowSelection && (
-                  <TableHead className="w-8 uppercase text-sm bg-accent">
+                  <TableHead
+                    className="w-8 uppercase text-sm bg-accent"
+                    rowSpan={headerColSpans?.select?.rowSpan}
+                    colSpan={headerColSpans?.select?.colSpan}
+                  >
                     <Checkbox
                       checked={table.getIsAllRowsSelected()}
                       onCheckedChange={(value) =>
@@ -677,16 +702,25 @@ export function DataTable<TData extends Record<string, any>, TValue>({
                     />
                   </TableHead>
                 )}
+
                 {headerGroup.headers.map((header) => {
                   const isSorted = header.column.getIsSorted();
                   const isActionCol = header.id === "actions";
+                  const spans = headerColSpans?.[header.id] || {};
+
                   return (
                     <TableHead
                       key={header.id}
                       onClick={header.column.getToggleSortingHandler()}
                       className={`cursor-pointer select-none uppercase text-sm bg-accent ${
                         isActionCol ? "text-right" : ""
+                      } ${
+                        spans.colSpan || spans.rowSpan
+                          ? "border-l border-r"
+                          : ""
                       }`}
+                      colSpan={spans.colSpan}
+                      rowSpan={spans.rowSpan}
                     >
                       <div
                         className={`flex items-center gap-1 ${
@@ -738,14 +772,28 @@ export function DataTable<TData extends Record<string, any>, TValue>({
                       />
                     </TableCell>
                   )}
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext()
-                      )}
-                    </TableCell>
-                  ))}
+                  {row.getVisibleCells().map((cell) => {
+                    const spans = rowColSpans?.[row.id]?.[cell.column.id] || {};
+                    console.log(spans);
+
+                    return (
+                      <TableCell
+                        key={cell.id}
+                        colSpan={spans.colSpan}
+                        rowSpan={spans.rowSpan}
+                        className={
+                          spans.colSpan || spans.rowSpan
+                            ? "border-l border-r"
+                            : ""
+                        }
+                      >
+                        {flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext()
+                        )}
+                      </TableCell>
+                    );
+                  })}
                 </TableRow>
               ))
             ) : (
