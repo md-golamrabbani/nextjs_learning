@@ -1,5 +1,4 @@
 "use client";
-
 import * as React from "react";
 import {
   ColumnDef,
@@ -68,6 +67,7 @@ import {
   CommandItem,
 } from "../../../components/ui/command";
 import { BulkDeleteDialog } from "@/app/components/table/BulkDeleteDialog";
+import { DateRange } from "react-day-picker";
 
 type FilterType = "select" | "text" | "date" | "number" | "boolean";
 
@@ -78,6 +78,8 @@ interface FilterConfig {
   label?: string;
   /** Type of input control to render */
   type: FilterType;
+  /** mode of input date to render */
+  mode?: "single" | "range";
   /** Options for select or boolean fields */
   options?: { label: string; value: string }[];
   /** Optional placeholder for text/date/number inputs */
@@ -113,6 +115,7 @@ interface DataTableProps<TData extends Record<string, any>, TValue> {
   enableRowSelection?: boolean;
   renderRowActions?: (row: TData) => React.ReactNode;
   onBulkDelete?: (rows: TData[]) => void;
+  stickyHeader?: boolean;
 }
 
 export function DataTable<TData extends Record<string, any>, TValue>({
@@ -124,6 +127,7 @@ export function DataTable<TData extends Record<string, any>, TValue>({
   enableRowSelection,
   renderRowActions,
   onBulkDelete,
+  stickyHeader,
 }: DataTableProps<TData, TValue>) {
   const [menuOpen, setMenuOpen] = React.useState(false);
   const [sorting, setSorting] = React.useState<SortingState>([]);
@@ -500,40 +504,62 @@ export function DataTable<TData extends Record<string, any>, TValue>({
                   />
                 );
 
-              case "date":
-                const currentDate = col.getFilterValue() as Date | undefined;
+              case "date": {
+                const isRangeMode = filter.mode === "range";
+
+                const currentValue = col.getFilterValue() as
+                  | Date
+                  | DateRange
+                  | undefined;
+
                 return (
                   <Popover key={filter.column}>
-                    <div className="relative flex items-center w-36">
+                    <div
+                      className={`relative flex items-center ${
+                        isRangeMode ? "w-56" : "w-36"
+                      }`}
+                    >
                       <PopoverTrigger asChild>
                         <Button
                           variant="outline"
                           id="date"
-                          className="w-36 justify-between font-normal"
+                          className={`justify-between font-normal w-full`}
                         >
-                          {currentDate
-                            ? format(new Date(currentDate), "yyyy-MM-dd")
+                          {isRangeMode
+                            ? currentValue && (currentValue as DateRange).from
+                              ? (currentValue as DateRange).to
+                                ? `${format(
+                                    (currentValue as DateRange).from!,
+                                    "yyyy-MM-dd"
+                                  )} → ${format(
+                                    (currentValue as DateRange).to!,
+                                    "yyyy-MM-dd"
+                                  )}`
+                                : format(
+                                    (currentValue as DateRange).from!,
+                                    "yyyy-MM-dd"
+                                  )
+                              : filter.label || "Select Date Range"
+                            : currentValue
+                            ? format(currentValue as Date, "yyyy-MM-dd")
                             : filter.label || "Select Date"}
-                          {currentDate ? null : (
-                            <ChevronDownIcon className="text-muted-foreground" />
+                          {!currentValue && (
+                            <ChevronDownIcon className="ml-2 h-4 w-4 text-muted-foreground" />
                           )}
                         </Button>
                       </PopoverTrigger>
 
-                      {currentDate && (
+                      {currentValue && (
                         <button
                           className="absolute right-3 top-1/2 -translate-y-1/2"
                           onClick={(e) => {
-                            e.stopPropagation(); // stop triggering popover
+                            e.stopPropagation();
                             col.setFilterValue(undefined);
-                            // Update global filter state
                             const updatedFilters = {
                               ...filterValues,
                               [filter.column]: undefined,
                             };
                             setFilterValues(updatedFilters);
-
-                            // Call optional AJAX callback
                             filter.onChange?.(undefined, updatedFilters);
                           }}
                         >
@@ -542,20 +568,28 @@ export function DataTable<TData extends Record<string, any>, TValue>({
                       )}
                     </div>
 
-                    <PopoverContent className="w-auto p-0 bg-popover text-popover-foreground shadow-md rounded-md">
+                    <PopoverContent className="w-auto p-0">
                       <Calendar
-                        mode="single"
-                        selected={
-                          currentDate ? new Date(currentDate) : undefined
-                        }
-                        onSelect={(date) =>
-                          col.setFilterValue(date ?? undefined)
-                        }
+                        mode={isRangeMode ? "range" : "single"}
+                        numberOfMonths={isRangeMode ? 2 : 1}
+                        required={isRangeMode ? false : undefined}
+                        selected={currentValue as any}
+                        onSelect={(val: Date | DateRange | undefined) => {
+                          const newValue = val ?? undefined;
+                          col.setFilterValue(newValue);
+                          const updatedFilters = {
+                            ...filterValues,
+                            [filter.column]: newValue,
+                          };
+                          setFilterValues(updatedFilters);
+                          filter.onChange?.(newValue, updatedFilters);
+                        }}
                         className="rounded-md"
                       />
                     </PopoverContent>
                   </Popover>
                 );
+              }
 
               case "number":
                 return (
@@ -585,7 +619,7 @@ export function DataTable<TData extends Record<string, any>, TValue>({
         </div>
 
         {/* RIGHT SIDE — Export + Columns */}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {/* checked selectd */}
           <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
             <DropdownMenuTrigger asChild>
@@ -676,14 +710,16 @@ export function DataTable<TData extends Record<string, any>, TValue>({
       </div>
 
       {/* TABLE */}
-      <div className="rounded-md border overflow-x-auto">
-        <Table>
-          <TableHeader>
+      <div className="rounded-md border overflow-auto relative">
+        <Table className="relative">
+          <TableHeader
+            className={stickyHeader ? "sticky top-0 bg-accent z-10" : ""}
+          >
             {table.getHeaderGroups().map((headerGroup, hgIndex) => (
               <TableRow key={headerGroup.id}>
                 {enableRowSelection && (
                   <TableHead
-                    className="w-8 uppercase text-sm bg-accent"
+                    className={`w-8 uppercase text-sm bg-accent`}
                     rowSpan={headerColSpans?.select?.rowSpan}
                     colSpan={headerColSpans?.select?.colSpan}
                   >
@@ -774,8 +810,6 @@ export function DataTable<TData extends Record<string, any>, TValue>({
                   )}
                   {row.getVisibleCells().map((cell) => {
                     const spans = rowColSpans?.[row.id]?.[cell.column.id] || {};
-                    console.log(spans);
-
                     return (
                       <TableCell
                         key={cell.id}
