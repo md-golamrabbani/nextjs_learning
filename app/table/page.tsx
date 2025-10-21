@@ -97,6 +97,7 @@ export default function TablePage() {
       console.error("Bulk delete failed:", error);
     }
   };
+
   if (loading) return <DataTableSkeleton columns={columns.length} rows={10} />;
 
   return (
