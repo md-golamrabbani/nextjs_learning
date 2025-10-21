@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createColumnHelper, type ColumnDef } from "@tanstack/react-table";
-import { DataTable } from "@/components/data-table";
+import { DataTable } from "@/app/components/table/DataTable";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -11,6 +11,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal } from "lucide-react";
+import { DeleteDialog } from "../components/table/DeleteDialog";
+import { RowActions } from "../components/table/RowActions";
+import { DataTableSkeleton } from "../components/table/DataTableSkeleton";
 
 export default function TablePage() {
   const [data, setData] = useState<any[]>([]);
@@ -77,7 +80,25 @@ export default function TablePage() {
     fetchData();
   }, []);
 
-  if (loading) return <p className="p-8">Loading...</p>;
+  const handleDelete = (row: any) => {
+    setData((prev) => prev.filter((r) => r.id !== row.id));
+  };
+
+  const handleBulkDelete = async (rows: any[]) => {
+    try {
+      console.log("Deleting bulk rows:", rows);
+      // await fetch(`/api/users/bulk-delete`, {
+      //   method: "POST",
+      //   body: JSON.stringify({ ids: rows.map((r) => r.id) }),
+      // });
+      setData((prev) =>
+        prev.filter((item) => !rows.some((r) => r.id === item.id))
+      );
+    } catch (error) {
+      console.error("Bulk delete failed:", error);
+    }
+  };
+  if (loading) return <DataTableSkeleton columns={columns.length} rows={10} />;
 
   return (
     <div className="p-8">
@@ -86,28 +107,23 @@ export default function TablePage() {
         columns={columns}
         data={data}
         enableRowSelection={true}
+        onBulkDelete={handleBulkDelete}
         renderRowActions={(row) => (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button size="sm" variant="ghost">
-                <MoreHorizontal />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => console.log("Edit", row)}>
-                Edit
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => console.log("Delete", row)}>
-                Delete
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <RowActions
+            row={row}
+            onEdit={(data) => console.log("Edit:", data)}
+            onDelete={(data) => handleDelete(data)}
+          />
         )}
         filterConfig={[
           {
             column: "name",
             type: "text",
             placeholder: "Search name...",
+            onChange: (value, allFilters) => {
+              console.log("Name filter changed:", value);
+              console.log("All filters:", allFilters);
+            },
           },
           {
             column: "zipcode",

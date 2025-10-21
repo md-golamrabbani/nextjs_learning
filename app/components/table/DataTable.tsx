@@ -44,9 +44,13 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
 import { BiSortDown, BiSortUp } from "react-icons/bi";
-import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "../../../components/ui/popover";
 import { format } from "date-fns";
-import { Calendar } from "./ui/calendar";
+import { Calendar } from "../../../components/ui/calendar";
 import {
   Select,
   SelectContent,
@@ -55,14 +59,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Checkbox } from "./ui/checkbox";
+import { Checkbox } from "../../../components/ui/checkbox";
 import {
   Command,
   CommandEmpty,
   CommandGroup,
   CommandInput,
   CommandItem,
-} from "./ui/command";
+} from "../../../components/ui/command";
+import { BulkDeleteDialog } from "@/app/components/table/BulkDeleteDialog";
 
 type FilterType = "select" | "text" | "date" | "number" | "boolean";
 
@@ -79,6 +84,7 @@ interface FilterConfig {
   placeholder?: string;
   isSearchable?: boolean;
   isMulti?: boolean;
+  onChange?: (value: any, allFilters: Record<string, any>) => void;
 }
 
 interface DataTableProps<TData extends Record<string, any>, TValue> {
@@ -87,6 +93,7 @@ interface DataTableProps<TData extends Record<string, any>, TValue> {
   filterConfig?: FilterConfig[];
   enableRowSelection?: boolean;
   renderRowActions?: (row: TData) => React.ReactNode;
+  onBulkDelete?: (rows: TData[]) => void;
 }
 
 export function DataTable<TData extends Record<string, any>, TValue>({
@@ -95,7 +102,9 @@ export function DataTable<TData extends Record<string, any>, TValue>({
   filterConfig,
   enableRowSelection,
   renderRowActions,
+  onBulkDelete,
 }: DataTableProps<TData, TValue>) {
+  const [menuOpen, setMenuOpen] = React.useState(false);
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
     []
@@ -108,6 +117,10 @@ export function DataTable<TData extends Record<string, any>, TValue>({
     pageIndex: 0,
     pageSize: 10,
   });
+  const [filterValues, setFilterValues] = React.useState<Record<string, any>>(
+    {}
+  );
+
   const tableColumns: ColumnDef<TData, TValue>[] = React.useMemo(() => {
     const baseCols = [...columns]; // copy to avoid mutating props
 
@@ -203,6 +216,60 @@ export function DataTable<TData extends Record<string, any>, TValue>({
     doc.save("data.pdf");
   };
 
+  // Export selected rows to CSV
+  const exportSelectedToCSV = () => {
+    const selectedRows = table
+      .getSelectedRowModel()
+      .rows.map((r) => r.original);
+    if (!selectedRows.length) return;
+
+    const ws = XLSX.utils.json_to_sheet(selectedRows);
+    const csv = XLSX.utils.sheet_to_csv(ws);
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "selected-data.csv";
+    a.click();
+  };
+
+  // Export selected rows to Excel
+  const exportSelectedToExcel = () => {
+    const selectedRows = table
+      .getSelectedRowModel()
+      .rows.map((r) => r.original);
+    if (!selectedRows.length) return;
+
+    const ws = XLSX.utils.json_to_sheet(selectedRows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Selected Data");
+    XLSX.writeFile(wb, "selected-data.xlsx");
+  };
+
+  // Export selected rows to PDF
+  const exportSelectedToPDF = () => {
+    const selectedRows = table
+      .getSelectedRowModel()
+      .rows.map((r) => r.original);
+    if (!selectedRows.length) return;
+
+    const doc = new jsPDF();
+
+    const headers = table
+      .getAllLeafColumns()
+      .map((col) => col.id)
+      .filter((id) => id !== "actions" && id !== "select");
+
+    const body = selectedRows.map((row) => headers.map((id) => row[id]));
+
+    autoTable(doc, {
+      head: [headers],
+      body,
+    });
+
+    doc.save("selected-data.pdf");
+  };
+
   return (
     <div className="space-y-4">
       {/* FILTERS & EXPORT */}
@@ -239,20 +306,31 @@ export function DataTable<TData extends Record<string, any>, TValue>({
                         : String(col.getFilterValue())
                     }
                     onValueChange={(value) => {
+                      let newValue: any;
+
                       if (filter.isMulti) {
                         const current: string[] =
                           (col.getFilterValue() as string[]) || [];
                         const newValues = current.includes(value)
                           ? current.filter((v) => v !== value)
                           : [...current, value];
-                        col.setFilterValue(
-                          newValues.length === 0 ? undefined : newValues
-                        );
+                        newValue =
+                          newValues.length === 0 ? undefined : newValues;
                       } else {
-                        col.setFilterValue(
-                          value === "__all__" ? undefined : value
-                        );
+                        newValue = value === "__all__" ? undefined : value;
                       }
+
+                      col.setFilterValue(newValue);
+
+                      // Update central filter state
+                      const updatedFilters = {
+                        ...filterValues,
+                        [filter.column]: newValue,
+                      };
+                      setFilterValues(updatedFilters);
+
+                      // Call optional callback for AJAX
+                      filter.onChange?.(newValue, updatedFilters);
                     }}
                   >
                     <SelectTrigger className="w-36">
@@ -385,7 +463,18 @@ export function DataTable<TData extends Record<string, any>, TValue>({
                   <Input
                     key={filter.column}
                     placeholder={filter.placeholder || filter.label}
-                    onChange={(e) => col.setFilterValue(e.target.value)}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      col.setFilterValue(value);
+
+                      const updatedFilters = {
+                        ...filterValues,
+                        [filter.column]: value,
+                      };
+                      setFilterValues(updatedFilters);
+
+                      filter.onChange?.(value, updatedFilters);
+                    }}
                     className="max-w-fit"
                   />
                 );
@@ -404,7 +493,9 @@ export function DataTable<TData extends Record<string, any>, TValue>({
                           {currentDate
                             ? format(new Date(currentDate), "yyyy-MM-dd")
                             : filter.label || "Select Date"}
-                          {currentDate ? null : <ChevronDownIcon />}
+                          {currentDate ? null : (
+                            <ChevronDownIcon className="text-muted-foreground" />
+                          )}
                         </Button>
                       </PopoverTrigger>
 
@@ -414,6 +505,15 @@ export function DataTable<TData extends Record<string, any>, TValue>({
                           onClick={(e) => {
                             e.stopPropagation(); // stop triggering popover
                             col.setFilterValue(undefined);
+                            // Update global filter state
+                            const updatedFilters = {
+                              ...filterValues,
+                              [filter.column]: undefined,
+                            };
+                            setFilterValues(updatedFilters);
+
+                            // Call optional AJAX callback
+                            filter.onChange?.(undefined, updatedFilters);
                           }}
                         >
                           <X className="h-4 w-4 text-muted-foreground" />
@@ -442,7 +542,18 @@ export function DataTable<TData extends Record<string, any>, TValue>({
                     key={filter.column}
                     type="number"
                     placeholder={filter.placeholder || filter.label}
-                    onChange={(e) => col.setFilterValue(e.target.value)}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      col.setFilterValue(value);
+
+                      const updatedFilters = {
+                        ...filterValues,
+                        [filter.column]: value,
+                      };
+                      setFilterValues(updatedFilters);
+
+                      filter.onChange?.(value, updatedFilters);
+                    }}
                   />
                 );
 
@@ -455,64 +566,41 @@ export function DataTable<TData extends Record<string, any>, TValue>({
         {/* RIGHT SIDE — Export + Columns */}
         <div className="flex items-center gap-2">
           {/* checked selectd */}
-          <DropdownMenu>
+          <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
             <DropdownMenuTrigger asChild>
               <Button
                 variant="outline"
+                className="font-normal"
                 disabled={Object.keys(rowSelection).length === 0}
               >
-                Actions <ChevronDown className="ml-2 h-4 w-4" />
+                Actions{" "}
+                <ChevronDown className="ml-2 h-4 w-4 text-muted-foreground" />
               </Button>
             </DropdownMenuTrigger>
 
             <DropdownMenuContent align="end">
               <DropdownMenuLabel>Selected Rows Actions</DropdownMenuLabel>
 
-              <DropdownMenuItem
-                onClick={() => {
-                  const selectedRows = table
-                    .getSelectedRowModel()
-                    .rows.map((r) => r.original);
-                  console.log("Delete rows:", selectedRows);
-                  // Add your delete logic here
+              <BulkDeleteDialog
+                selectedRows={table
+                  .getSelectedRowModel()
+                  .rows.map((r) => r.original)}
+                onConfirm={(rows) => {
+                  onBulkDelete?.(rows);
+                  table.resetRowSelection();
                 }}
-              >
-                Delete
-              </DropdownMenuItem>
+                onAfterDelete={() => setMenuOpen(false)}
+              />
 
-              <DropdownMenuItem
-                onClick={() => {
-                  const selectedRows = table
-                    .getSelectedRowModel()
-                    .rows.map((r) => r.original);
-                  console.log("Export selected rows to CSV:", selectedRows);
-                  // Add your CSV export logic here
-                }}
-              >
+              <DropdownMenuItem onClick={exportSelectedToCSV}>
                 Export CSV
               </DropdownMenuItem>
 
-              <DropdownMenuItem
-                onClick={() => {
-                  const selectedRows = table
-                    .getSelectedRowModel()
-                    .rows.map((r) => r.original);
-                  console.log("Export selected rows to Excel:", selectedRows);
-                  // Add your Excel export logic here
-                }}
-              >
+              <DropdownMenuItem onClick={exportSelectedToExcel}>
                 Export Excel
               </DropdownMenuItem>
 
-              <DropdownMenuItem
-                onClick={() => {
-                  const selectedRows = table
-                    .getSelectedRowModel()
-                    .rows.map((r) => r.original);
-                  console.log("Export selected rows to PDF:", selectedRows);
-                  // Add your PDF export logic here
-                }}
-              >
+              <DropdownMenuItem onClick={exportSelectedToPDF}>
                 Export PDF
               </DropdownMenuItem>
 
@@ -523,8 +611,9 @@ export function DataTable<TData extends Record<string, any>, TValue>({
           {/* Export Dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline">
-                Export <ChevronDown className="ml-2 h-4 w-4" />
+              <Button variant="outline" className="font-normal">
+                Export{" "}
+                <ChevronDown className="ml-2 h-4 w-4 text-muted-foreground" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -538,8 +627,9 @@ export function DataTable<TData extends Record<string, any>, TValue>({
           {/* Columns Dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline">
-                Columns <ChevronDown className="ml-2 h-4 w-4" />
+              <Button variant="outline" className="font-normal">
+                Columns{" "}
+                <ChevronDown className="ml-2 h-4 w-4 text-muted-foreground" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
