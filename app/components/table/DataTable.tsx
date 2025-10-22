@@ -116,6 +116,8 @@ interface DataTableProps<TData extends Record<string, any>, TValue> {
   renderRowActions?: (row: TData) => React.ReactNode;
   onBulkDelete?: (rows: TData[]) => void;
   stickyHeader?: boolean;
+  onPageChange?: (pageIndex: number, pageSize: number) => void;
+  onPageSizeChange?: (pageSize: number, pageIndex: number) => void;
 }
 
 export function DataTable<TData extends Record<string, any>, TValue>({
@@ -128,6 +130,8 @@ export function DataTable<TData extends Record<string, any>, TValue>({
   renderRowActions,
   onBulkDelete,
   stickyHeader,
+  onPageChange,
+  onPageSizeChange,
 }: DataTableProps<TData, TValue>) {
   const [menuOpen, setMenuOpen] = React.useState(false);
   const [sorting, setSorting] = React.useState<SortingState>([]);
@@ -383,7 +387,7 @@ export function DataTable<TData extends Record<string, any>, TValue>({
                       </SelectValue>
                     </SelectTrigger>
 
-                    <SelectContent>
+                    <SelectContent className="max-h-100 overflow-y-auto">
                       {filter.isSearchable ? (
                         <Command>
                           <CommandInput
@@ -719,7 +723,7 @@ export function DataTable<TData extends Record<string, any>, TValue>({
               <TableRow key={headerGroup.id}>
                 {enableRowSelection && (
                   <TableHead
-                    className={`w-8 uppercase text-sm bg-accent`}
+                    className={`w-8 text-sm bg-accent`}
                     rowSpan={headerColSpans?.select?.rowSpan}
                     colSpan={headerColSpans?.select?.colSpan}
                   >
@@ -748,7 +752,7 @@ export function DataTable<TData extends Record<string, any>, TValue>({
                     <TableHead
                       key={header.id}
                       onClick={header.column.getToggleSortingHandler()}
-                      className={`cursor-pointer select-none uppercase text-sm bg-accent ${
+                      className={`cursor-pointer select-none text-sm bg-accent ${
                         isActionCol ? "text-right" : ""
                       } ${
                         spans.colSpan || spans.rowSpan
@@ -864,7 +868,13 @@ export function DataTable<TData extends Record<string, any>, TValue>({
           <Select
             value={String(table.getState().pagination.pageSize)}
             onValueChange={(value) => {
-              table.setPageSize(Number(value));
+              const newSize = Number(value);
+              table.setPageSize(newSize);
+              // Trigger parent callback if provided
+              onPageSizeChange?.(
+                newSize,
+                table.getState().pagination.pageIndex
+              );
             }}
           >
             <SelectTrigger className="w-16 border rounded-md p-1 text-sm">
@@ -884,7 +894,11 @@ export function DataTable<TData extends Record<string, any>, TValue>({
           <Button
             variant="outline"
             size="sm"
-            onClick={() => table.previousPage()}
+            onClick={() => {
+              table.previousPage();
+              const { pageIndex, pageSize } = table.getState().pagination;
+              onPageChange?.(pageIndex - 1, pageSize);
+            }}
             disabled={!table.getCanPreviousPage()}
           >
             Previous
@@ -892,7 +906,11 @@ export function DataTable<TData extends Record<string, any>, TValue>({
           <Button
             variant="outline"
             size="sm"
-            onClick={() => table.nextPage()}
+            onClick={() => {
+              table.nextPage();
+              const { pageIndex, pageSize } = table.getState().pagination;
+              onPageChange?.(pageIndex + 1, pageSize);
+            }}
             disabled={!table.getCanNextPage()}
           >
             Next

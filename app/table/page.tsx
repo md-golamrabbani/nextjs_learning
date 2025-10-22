@@ -223,8 +223,21 @@ export default function TablePage() {
             isMulti: true,
             options: [
               { label: "Zip Code", value: "" },
-              { label: "92998-3874", value: "92998-3874" },
-              { label: "90566-7771", value: "90566-7771" },
+              { label: "55335", value: "55335" },
+              { label: "2264", value: "2264" },
+              { label: "36650", value: "36650" },
+              { label: "4635", value: "4635" },
+              { label: "51132", value: "51132" },
+              { label: "6973", value: "6973" },
+              { label: "1243", value: "1243" },
+              { label: "P5G 1Y7", value: "P5G 1Y7" },
+              { label: "9017", value: "9017" },
+              { label: "72890", value: "72890" },
+              { label: "91378", value: "91378" },
+              { label: "43", value: "43" },
+              { label: "575", value: "575" },
+              { label: "65875", value: "65875" },
+              { label: "6784", value: "6784" },
             ],
           },
           {
@@ -242,6 +255,12 @@ export default function TablePage() {
             mode: "range",
           },
         ]}
+        onPageChange={(pageIndex, pageSize) => {
+          console.log("Page changed:", { pageIndex, pageSize });
+        }}
+        onPageSizeChange={(pageSize, pageIndex) => {
+          console.log("Page size changed:", { pageSize, pageIndex });
+        }}
       />
     </div>
   );
