@@ -877,7 +877,10 @@ export function DataTable<TData extends Record<string, any>, TValue>({
               );
             }}
           >
-            <SelectTrigger className="w-16 border rounded-md p-1 text-sm">
+            <SelectTrigger
+              className="w-16 border rounded-md p-1 text-sm"
+              aria-labelledby="rows-per-page-label"
+            >
               <SelectValue placeholder="Rows" />
             </SelectTrigger>
             <SelectContent>
