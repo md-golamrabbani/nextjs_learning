@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { DataTable } from "@/app/components/table/DataTable";
-import { RowActions } from "../components/table/RowActions";
-import { DataTableSkeleton } from "../components/table/DataTableSkeleton";
+import { RowActions } from "../../components/table/RowActions";
+import { DataTableSkeleton } from "../../components/table/DataTableSkeleton";
 import { ColumnDef } from "@tanstack/react-table";
 import { format } from "date-fns";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -55,7 +55,7 @@ export default function TablePage() {
           const keys = Object.keys(normalized[0]);
 
           const dynamicColumns: ColumnDef<any>[] = keys
-            .filter((key) => key !== "avatar") // exclude avatar
+            .filter((key) => key !== "avatar" && key !== "id") // exclude avatar and id
             .map((key) => {
               const column: ColumnDef<any> = {
                 accessorKey: key,
