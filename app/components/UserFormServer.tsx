@@ -2,7 +2,7 @@
 
 import React from "react";
 
-export default function UserFormServer({
+export default function UserForm({
   createUserAction,
 }: {
   createUserAction: (formData: FormData) => Promise<void>;

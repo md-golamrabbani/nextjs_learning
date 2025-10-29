@@ -1,7 +1,11 @@
+// app/users/page.tsx
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { DataTable } from "@/app/components/table/DataTable";
-import UserFormServer from "@/app/components/UserFormServer";
+import { z } from "zod";
+import UserFormClient from "@/app/components/UserFormClient";
+
+export const revalidate = 30; // ISR: regenerate every 30s (keeps reads cheap)
 
 const columns = [
   { accessorKey: "id", header: "ID" },
@@ -11,37 +15,76 @@ const columns = [
   { accessorKey: "phone", header: "Phone" },
 ];
 
-// ✅ Server Action to insert new user and revalidate page
+// Zod schema to validate incoming data from the form
+const userSchema = z.object({
+  name: z.string().min(1),
+  email: z.string().email(),
+  phone: z
+    .string()
+    .optional()
+    .or(z.literal(""))
+    .transform((v) => v ?? ""),
+  address: z
+    .string()
+    .optional()
+    .or(z.literal(""))
+    .transform((v) => v ?? ""),
+  country: z
+    .string()
+    .optional()
+    .or(z.literal(""))
+    .transform((v) => v ?? ""),
+  avatar: z
+    .string()
+    .optional()
+    .or(z.literal(""))
+    .transform((v) => v ?? ""),
+});
+
+/**
+ * Server Action: create user and revalidate the /users page.
+ * This runs on the server only.
+ */
 export async function createUserAction(formData: FormData) {
   "use server";
 
-  const name = formData.get("name") as string;
-  const email = formData.get("email") as string;
-  const phone = formData.get("phone") as string;
-  const address = formData.get("address") as string;
-  const country = formData.get("country") as string;
-  const avatar = formData.get("avatar") as string;
+  // convert formData to plain object
+  const obj = Object.fromEntries(formData.entries());
+  // zod parse (throws if invalid)
+  const parsed = userSchema.parse(obj);
 
   await prisma.user.create({
-    data: { name, email, phone, address, country, avatar },
+    data: {
+      name: parsed.name,
+      email: parsed.email,
+      phone: parsed.phone,
+      address: parsed.address,
+      country: parsed.country,
+      avatar: parsed.avatar,
+    },
   });
 
-  // ✅ Revalidate current route — triggers instant SSR refresh
+  // Immediately revalidate the ISR cache for /users so SSR page updates instantly
   revalidatePath("/users");
 }
 
 export default async function Page() {
-  // ✅ Server-side load
-  const users = await prisma.user.findMany({ orderBy: { id: "desc" } });
+  // Server-side read: uses Prisma directly.
+  // With `export const revalidate = 30`, this page will be cached and regenerated periodically,
+  // but createUserAction calls revalidatePath("/users") to refresh immediately on writes.
+  const users = await prisma.user.findMany({
+    orderBy: { id: "desc" },
+    take: 1000, // cap or implement pagination for very large datasets
+  });
 
   return (
     <div className="max-w-5xl mx-auto p-6 h-[95vh] flex flex-col">
       <h1 className="text-2xl font-bold mb-4 flex-shrink-0">Users</h1>
 
-      {/* Client Form (calls server action) */}
-      <UserFormServer createUserAction={createUserAction} />
+      {/* Client form that submits to server action */}
+      <UserFormClient createUserAction={createUserAction} />
 
-      {/* Server-rendered table */}
+      {/* Server-rendered table; table container scrolls, header stays visible */}
       <div className="flex-1 overflow-y-auto border rounded">
         <DataTable columns={columns} data={users} />
       </div>

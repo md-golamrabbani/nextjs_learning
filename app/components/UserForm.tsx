@@ -6,7 +6,7 @@ interface UserFormProps {
   onSuccess: () => void; // Callback to refresh table
 }
 
-export default function UserForm() {
+export default function UserForm({ onSuccess }: UserFormProps) {
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -35,8 +35,7 @@ export default function UserForm() {
       country: "",
       avatar: "",
     });
-    window.location.reload();
-    // onSuccess(); // Refresh table
+    onSuccess(); // Refresh table
   };
 
   return (
