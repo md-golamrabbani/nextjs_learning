@@ -10,9 +10,31 @@ export const revalidate = 30; // ISR: regenerate every 30s (keeps reads cheap)
 const columns = [
   { accessorKey: "id", header: "ID" },
   { accessorKey: "name", header: "Name" },
-  { accessorKey: "country", header: "Country" },
   { accessorKey: "email", header: "Email" },
   { accessorKey: "phone", header: "Phone" },
+  { accessorKey: "address", header: "Address" },
+  { accessorKey: "country", header: "Country" },
+  { accessorKey: "avatar", header: "Avatar" },
+  { accessorKey: "username", header: "Username" },
+  { accessorKey: "password", header: "Password" },
+  { accessorKey: "birthDate", header: "Birth Date" },
+  { accessorKey: "gender", header: "Gender" },
+  { accessorKey: "city", header: "City" },
+  { accessorKey: "state", header: "State" },
+  { accessorKey: "zipCode", header: "ZIP Code" },
+  { accessorKey: "company", header: "Company" },
+  { accessorKey: "jobTitle", header: "Job Title" },
+  { accessorKey: "website", header: "Website" },
+  { accessorKey: "bio", header: "Bio" },
+  { accessorKey: "interests", header: "Interests" },
+  { accessorKey: "language", header: "Language" },
+  { accessorKey: "timezone", header: "Timezone" },
+  { accessorKey: "ipAddress", header: "IP Address" },
+  { accessorKey: "latitude", header: "Latitude" },
+  { accessorKey: "longitude", header: "Longitude" },
+  { accessorKey: "lastLogin", header: "Last Login" },
+  { accessorKey: "createdAt", header: "Created At" },
+  { accessorKey: "updatedAt", header: "Updated At" },
 ];
 
 // Zod schema to validate incoming data from the form
@@ -74,7 +96,7 @@ export default async function Page() {
   // but createUserAction calls revalidatePath("/users") to refresh immediately on writes.
   const users = await prisma.user.findMany({
     orderBy: { id: "desc" },
-    take: 1000, // cap or implement pagination for very large datasets
+    // take: 5,
   });
 
   return (

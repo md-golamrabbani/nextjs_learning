@@ -41,7 +41,7 @@ import {
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
+import { ArrowUpDown } from "lucide-react";
 import { BiSortDown, BiSortUp } from "react-icons/bi";
 import {
   Popover,
@@ -109,6 +109,12 @@ interface HeaderColSpans {
 interface DataTableProps<TData extends Record<string, any>, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
+  initialPage?: number;
+  totalPages?: number;
+  pageSize?: number;
+  serverPagination?: boolean;
+  apiUrl?: string;
+  paginationTheme?: "simple" | "shadcn";
   rowColSpans?: RowColSpans;
   headerColSpans?: HeaderColSpans;
   filterConfig?: FilterConfig[];
@@ -122,7 +128,13 @@ interface DataTableProps<TData extends Record<string, any>, TValue> {
 
 export function DataTable<TData extends Record<string, any>, TValue>({
   columns,
-  data,
+  data: initialData,
+  initialPage,
+  totalPages,
+  pageSize,
+  serverPagination,
+  apiUrl,
+  paginationTheme,
   rowColSpans,
   headerColSpans,
   filterConfig,
@@ -133,6 +145,7 @@ export function DataTable<TData extends Record<string, any>, TValue>({
   onPageChange,
   onPageSizeChange,
 }: DataTableProps<TData, TValue>) {
+  const [data, setData] = React.useState<TData[]>(initialData || []);
   const [menuOpen, setMenuOpen] = React.useState(false);
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
@@ -143,8 +156,8 @@ export function DataTable<TData extends Record<string, any>, TValue>({
     React.useState<VisibilityState>({});
   const [rowSelection, setRowSelection] = React.useState({});
   const [pagination, setPagination] = React.useState({
-    pageIndex: 0,
-    pageSize: 10,
+    pageIndex: initialPage || 0,
+    pageSize: pageSize || 10,
   });
   const [filterValues, setFilterValues] = React.useState<Record<string, any>>(
     {}
@@ -179,14 +192,43 @@ export function DataTable<TData extends Record<string, any>, TValue>({
       pagination,
       globalFilter,
     },
+    manualPagination: serverPagination || false,
+    pageCount: serverPagination ? totalPages || -1 : undefined,
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
     onRowSelectionChange: setRowSelection,
-    onPaginationChange: (updater) => {
-      setPagination((old) =>
-        typeof updater === "function" ? updater(old) : updater
-      );
+    onPaginationChange: async (updater) => {
+      // Compute next pagination state
+      const nextPagination =
+        typeof updater === "function" ? updater(pagination) : updater;
+
+      // Update pagination state
+      setPagination(nextPagination);
+
+      // Only fetch from API if serverPagination is enabled
+      if (serverPagination && apiUrl) {
+        try {
+          const query = new URLSearchParams({
+            page: String(nextPagination.pageIndex),
+            pageSize: String(nextPagination.pageSize),
+          });
+
+          const res = await fetch(`${apiUrl}?${query.toString()}`, {
+            cache: "no-store",
+          });
+
+          if (!res.ok) {
+            console.error("Failed to fetch data from", apiUrl);
+            return;
+          }
+
+          const json = await res.json();
+          setData(json.data);
+        } catch (error) {
+          console.error("Pagination fetch failed:", error);
+        }
+      }
     },
     onGlobalFilterChange: setGlobalFilter,
     getCoreRowModel: getCoreRowModel(),
