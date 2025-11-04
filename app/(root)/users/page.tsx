@@ -67,28 +67,28 @@ const userSchema = z.object({
  * Server Action: create user and revalidate the /users page.
  * This runs on the server only.
  */
-export async function createUserAction(formData: FormData) {
-  "use server";
+// export async function createUserAction(formData: FormData) {
+//   "use server";
 
-  // convert formData to plain object
-  const obj = Object.fromEntries(formData.entries());
-  // zod parse (throws if invalid)
-  const parsed = userSchema.parse(obj);
+//   // convert formData to plain object
+//   const obj = Object.fromEntries(formData.entries());
+//   // zod parse (throws if invalid)
+//   const parsed = userSchema.parse(obj);
 
-  await prisma.user.create({
-    data: {
-      name: parsed.name,
-      email: parsed.email,
-      phone: parsed.phone,
-      address: parsed.address,
-      country: parsed.country,
-      avatar: parsed.avatar,
-    },
-  });
+//   await prisma.user.create({
+//     data: {
+//       name: parsed.name,
+//       email: parsed.email,
+//       phone: parsed.phone,
+//       address: parsed.address,
+//       country: parsed.country,
+//       avatar: parsed.avatar,
+//     },
+//   });
 
-  // Immediately revalidate the ISR cache for /users so SSR page updates instantly
-  revalidatePath("/users");
-}
+//   // Immediately revalidate the ISR cache for /users so SSR page updates instantly
+//   revalidatePath("/users");
+// }
 
 export default async function Page() {
   // Server-side read: uses Prisma directly.
@@ -104,7 +104,7 @@ export default async function Page() {
       <h1 className="text-2xl font-bold mb-4 flex-shrink-0">Users</h1>
 
       {/* Client form that submits to server action */}
-      <UserFormClient createUserAction={createUserAction} />
+      {/* <UserFormClient createUserAction={createUserAction} /> */}
 
       {/* Server-rendered table; table container scrolls, header stays visible */}
       <div className="flex-1 overflow-y-auto border rounded">

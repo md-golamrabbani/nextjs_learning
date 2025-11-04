@@ -7,33 +7,36 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id            Int      @id @default(autoincrement())
-  name          String
-  email         String   @unique
-  phone         String
-  address       String
-  country       String
-  avatar        String
+model user {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String   @unique(map: "User_email_key")
+  phone     String
+  address   String
+  country   String
+  avatar    String
+  username  String
+  password  String
+  birthDate DateTime
+  gender    String
+  city      String
+  state     String
+  zipCode   String
+  company   String
+  jobTitle  String
+  website   String
+  bio       String
+  interests String
+  language  String
+  timezone  String
+  ipAddress String
+  latitude  Float
+  longitude Float
+  lastLogin DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime
 
-  username      String
-  password      String
-  birthDate     DateTime
-  gender        String
-  city          String
-  state         String
-  zipCode       String
-  company       String
-  jobTitle      String
-  website       String
-  bio           String
-  interests     String
-  language      String
-  timezone      String
-  ipAddress     String
-  latitude      Float
-  longitude     Float
-  lastLogin     DateTime
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  @@index([name])
+  @@index([language])
+  @@index([createdAt])
 }
