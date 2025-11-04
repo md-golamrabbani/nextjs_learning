@@ -68,6 +68,15 @@ import {
 } from "../../../components/ui/command";
 import { BulkDeleteDialog } from "@/app/components/table/BulkDeleteDialog";
 import { DateRange } from "react-day-picker";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 
 type FilterType = "select" | "text" | "date" | "number" | "boolean";
 
@@ -146,6 +155,9 @@ export function DataTable<TData extends Record<string, any>, TValue>({
   onPageSizeChange,
 }: DataTableProps<TData, TValue>) {
   const [data, setData] = React.useState<TData[]>(initialData || []);
+  const [serverTotalPages, setServerTotalPages] = React.useState(
+    totalPages || 1
+  );
   const [menuOpen, setMenuOpen] = React.useState(false);
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
@@ -225,6 +237,7 @@ export function DataTable<TData extends Record<string, any>, TValue>({
 
           const json = await res.json();
           setData(json.data);
+          if (json.totalPages) setServerTotalPages(json.totalPages);
         } catch (error) {
           console.error("Pagination fetch failed:", error);
         }
@@ -341,6 +354,47 @@ export function DataTable<TData extends Record<string, any>, TValue>({
     doc.save("selected-data.pdf");
   };
 
+  // Handle filter change — call API if needed, else use local filter
+  const handleFilterChange = async (newFilters: Record<string, any>) => {
+    // Always update the UI state
+    setFilterValues(newFilters);
+
+    // If no API URL, do nothing — local filter is already handled by Tanstack
+    if (!apiUrl) return;
+
+    // Build query string for server-side filtering
+    const params = new URLSearchParams();
+
+    Object.entries(newFilters).forEach(([key, val]) => {
+      if (!val) return;
+
+      // Handle date ranges specially
+      if (typeof val === "object" && val.from && val.to) {
+        params.append(`${key}From`, val.from.toISOString());
+        params.append(`${key}To`, val.to.toISOString());
+      } else {
+        params.append(key, String(val));
+      }
+    });
+
+    // Add pagination info if applicable
+    params.append("page", String(pagination.pageIndex));
+    params.append("pageSize", String(pagination.pageSize));
+
+    try {
+      const res = await fetch(`${apiUrl}?${params.toString()}`, {
+        cache: "no-store",
+      });
+      if (!res.ok) throw new Error("Failed to fetch filtered data");
+
+      const json = await res.json();
+      setData(json.data);
+      if (json.totalPages) setServerTotalPages(json.totalPages);
+    } catch (error) {
+      console.error("Filter fetch failed:", error);
+    }
+  };
+
   return (
     <div className="space-y-4">
       {/* FILTERS & EXPORT */}
@@ -350,7 +404,7 @@ export function DataTable<TData extends Record<string, any>, TValue>({
           <div className="relative">
             <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search ..."
+              placeholder="Table search ..."
               value={globalFilter}
               onChange={(e) => setGlobalFilter(e.target.value)}
               className="pl-8 max-w-xs" // add padding-left for icon space
@@ -398,10 +452,17 @@ export function DataTable<TData extends Record<string, any>, TValue>({
                         ...filterValues,
                         [filter.column]: newValue,
                       };
-                      setFilterValues(updatedFilters);
+
+                      // setFilterValues(updatedFilters);
 
                       // Call optional callback for AJAX
-                      filter.onChange?.(newValue, updatedFilters);
+                      // filter.onChange?.(newValue, updatedFilters);
+
+                      if (apiUrl) {
+                        handleFilterChange(updatedFilters);
+                      } else {
+                        filter.onChange?.(newValue, updatedFilters);
+                      }
                     }}
                   >
                     <SelectTrigger className="w-36">
@@ -542,9 +603,15 @@ export function DataTable<TData extends Record<string, any>, TValue>({
                         ...filterValues,
                         [filter.column]: value,
                       };
-                      setFilterValues(updatedFilters);
+                      // setFilterValues(updatedFilters);
 
-                      filter.onChange?.(value, updatedFilters);
+                      // filter.onChange?.(value, updatedFilters);
+
+                      if (apiUrl) {
+                        handleFilterChange(updatedFilters);
+                      } else {
+                        filter.onChange?.(value, updatedFilters);
+                      }
                     }}
                     className="max-w-fit"
                   />
@@ -606,7 +673,14 @@ export function DataTable<TData extends Record<string, any>, TValue>({
                               [filter.column]: undefined,
                             };
                             setFilterValues(updatedFilters);
-                            filter.onChange?.(undefined, updatedFilters);
+
+                            // filter.onChange?.(undefined, updatedFilters);
+
+                            if (apiUrl) {
+                              handleFilterChange(updatedFilters);
+                            } else {
+                              filter.onChange?.(undefined, updatedFilters);
+                            }
                           }}
                         >
                           <X className="h-4 w-4 text-muted-foreground" />
@@ -628,7 +702,13 @@ export function DataTable<TData extends Record<string, any>, TValue>({
                             [filter.column]: newValue,
                           };
                           setFilterValues(updatedFilters);
-                          filter.onChange?.(newValue, updatedFilters);
+                          // filter.onChange?.(newValue, updatedFilters);
+
+                          if (apiUrl) {
+                            handleFilterChange(updatedFilters);
+                          } else {
+                            filter.onChange?.(newValue, updatedFilters);
+                          }
                         }}
                         className="rounded-md"
                       />
@@ -653,7 +733,13 @@ export function DataTable<TData extends Record<string, any>, TValue>({
                       };
                       setFilterValues(updatedFilters);
 
-                      filter.onChange?.(value, updatedFilters);
+                      // filter.onChange?.(value, updatedFilters);
+
+                      if (apiUrl) {
+                        handleFilterChange(updatedFilters);
+                      } else {
+                        filter.onChange?.(value, updatedFilters);
+                      }
                     }}
                   />
                 );
@@ -935,32 +1021,135 @@ export function DataTable<TData extends Record<string, any>, TValue>({
           </Select>
         </div>
 
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              table.previousPage();
-              const { pageIndex, pageSize } = table.getState().pagination;
-              onPageChange?.(pageIndex - 1, pageSize);
-            }}
-            disabled={!table.getCanPreviousPage()}
-          >
-            Previous
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              table.nextPage();
-              const { pageIndex, pageSize } = table.getState().pagination;
-              onPageChange?.(pageIndex + 1, pageSize);
-            }}
-            disabled={!table.getCanNextPage()}
-          >
-            Next
-          </Button>
-        </div>
+        {/* pagination */}
+        {paginationTheme === "shadcn" ? (
+          // ----------------------------
+          // ShadCN-style pagination
+          // ----------------------------
+          <div className="flex gap-2">
+            <Pagination>
+              <PaginationContent>
+                {/* Previous Button */}
+                <PaginationItem>
+                  <PaginationPrevious
+                    href="#"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      table.previousPage();
+                      const { pageIndex, pageSize } =
+                        table.getState().pagination;
+                      onPageChange?.(pageIndex - 1, pageSize);
+                    }}
+                    className={
+                      !table.getCanPreviousPage()
+                        ? "pointer-events-none opacity-50"
+                        : ""
+                    }
+                  />
+                </PaginationItem>
+
+                {/* Dynamic Page Numbers */}
+                {(() => {
+                  const total =
+                    !serverPagination && data?.length
+                      ? Math.ceil(data.length / pagination.pageSize)
+                      : serverTotalPages;
+
+                  const current = table.getState().pagination.pageIndex;
+                  const pages: (number | "ellipsis")[] = [];
+
+                  // Always show first page
+                  pages.push(0);
+
+                  // Middle range (3 pages total around current)
+                  const start = Math.max(1, current - 1);
+                  const end = Math.min(total - 2, current + 1);
+
+                  if (start > 1) pages.push("ellipsis");
+                  for (let i = start; i <= end; i++) pages.push(i);
+                  if (end < total - 2) pages.push("ellipsis");
+
+                  // Always show last page
+                  if (total > 1) pages.push(total - 1);
+
+                  return pages.map((p, i) => {
+                    if (p === "ellipsis") {
+                      return (
+                        <PaginationItem key={`ellipsis-${i}`}>
+                          <PaginationEllipsis />
+                        </PaginationItem>
+                      );
+                    }
+                    return (
+                      <PaginationItem key={p}>
+                        <PaginationLink
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            table.setPageIndex(p);
+                            onPageChange?.(p, pagination.pageSize);
+                          }}
+                          isActive={p === current}
+                        >
+                          {p + 1}
+                        </PaginationLink>
+                      </PaginationItem>
+                    );
+                  });
+                })()}
+
+                {/* Next Button */}
+                <PaginationItem>
+                  <PaginationNext
+                    href="#"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      table.nextPage();
+                      const { pageIndex, pageSize } =
+                        table.getState().pagination;
+                      onPageChange?.(pageIndex + 1, pageSize);
+                    }}
+                    className={
+                      !table.getCanNextPage()
+                        ? "pointer-events-none opacity-50"
+                        : ""
+                    }
+                  />
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
+          </div>
+        ) : (
+          // ----------------------------
+          // Simple “Previous / Next” buttons
+          // ----------------------------
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                table.previousPage();
+                const { pageIndex, pageSize } = table.getState().pagination;
+                onPageChange?.(pageIndex - 1, pageSize);
+              }}
+              disabled={!table.getCanPreviousPage()}
+            >
+              Previous
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                table.nextPage();
+                const { pageIndex, pageSize } = table.getState().pagination;
+                onPageChange?.(pageIndex + 1, pageSize);
+              }}
+              disabled={!table.getCanNextPage()}
+            >
+              Next
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );

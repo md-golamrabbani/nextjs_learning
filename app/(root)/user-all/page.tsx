@@ -40,26 +40,50 @@ export default async function Page() {
   // Only fetch 1 page (SSR)
   const totalCount = await prisma.user.count();
   const users = await prisma.user.findMany({
-    // skip: pageIndex * pageSize,
-    // take: pageSize,
+    skip: pageIndex * pageSize,
+    take: pageSize,
     orderBy: { id: "desc" },
   });
 
   const totalPages = Math.ceil(totalCount / pageSize);
   return (
-    <div>
+    <div className="flex flex-col h-full p-12 space-y-4">
       <h1 className="text-2xl font-bold mb-4 flex-shrink-0">Users</h1>
 
       {/* Server-rendered table; table container scrolls, header stays visible */}
-      <div className="flex-1 overflow-y-auto border rounded">
+      <div className="flex-1 overflow-y-auto p-4">
         <DataTable
           columns={columns}
           data={users}
-          // initialPage={pageIndex}
-          // totalPages={totalPages}
-          // pageSize={pageSize}
-          // serverPagination={true}
-          // apiUrl="/api/users"
+          paginationTheme="shadcn"
+          initialPage={pageIndex}
+          totalPages={totalPages}
+          pageSize={pageSize}
+          serverPagination={true}
+          apiUrl="/api/users"
+          filterConfig={[
+            {
+              column: "name",
+              type: "text",
+              placeholder: "Name search...",
+            },
+            {
+              column: "language",
+              type: "select",
+              options: [
+                { label: "All Language", value: "" },
+                { label: "Arabic", value: "Arabic" },
+                { label: "German", value: "German" },
+                { label: "Chinese", value: "Chinese" },
+                { label: "English", value: "English" },
+              ],
+            },
+            {
+              column: "createdAt",
+              type: "date",
+              mode: "range",
+            },
+          ]}
         />
       </div>
     </div>
