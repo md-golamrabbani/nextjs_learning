@@ -214,34 +214,8 @@ export function DataTable<TData extends Record<string, any>, TValue>({
       // Compute next pagination state
       const nextPagination =
         typeof updater === "function" ? updater(pagination) : updater;
-
       // Update pagination state
       setPagination(nextPagination);
-
-      // Only fetch from API if serverPagination is enabled
-      if (serverPagination && apiUrl) {
-        try {
-          const query = new URLSearchParams({
-            page: String(nextPagination.pageIndex),
-            pageSize: String(nextPagination.pageSize),
-          });
-
-          const res = await fetch(`${apiUrl}?${query.toString()}`, {
-            cache: "no-store",
-          });
-
-          if (!res.ok) {
-            console.error("Failed to fetch data from", apiUrl);
-            return;
-          }
-
-          const json = await res.json();
-          setData(json.data);
-          if (json.totalPages) setServerTotalPages(json.totalPages);
-        } catch (error) {
-          console.error("Pagination fetch failed:", error);
-        }
-      }
     },
     onGlobalFilterChange: setGlobalFilter,
     getCoreRowModel: getCoreRowModel(),
@@ -250,6 +224,33 @@ export function DataTable<TData extends Record<string, any>, TValue>({
     getFilteredRowModel: getFilteredRowModel(),
     enableRowSelection: enableRowSelection,
   });
+
+  // SERVER-SIDE PAGINATION FETCH
+  React.useEffect(() => {
+    if (!serverPagination || !apiUrl) return;
+
+    const fetchData = async () => {
+      const params = new URLSearchParams({
+        page: String(pagination.pageIndex),
+        pageSize: String(pagination.pageSize),
+        ...Object.fromEntries(
+          Object.entries(filterValues).filter(
+            ([, v]) => v !== undefined && v !== ""
+          )
+        ),
+      });
+
+      const res = await fetch(`${apiUrl}?${params.toString()}`, {
+        cache: "no-store",
+      });
+      const json = await res.json();
+
+      setData(json.data);
+      setServerTotalPages(json.totalPages ?? 1);
+    };
+
+    fetchData();
+  }, [pagination, filterValues, apiUrl, serverPagination]);
 
   // -------------------------
   // EXPORT HANDLERS
@@ -363,7 +364,10 @@ export function DataTable<TData extends Record<string, any>, TValue>({
     if (!apiUrl) return;
 
     // Build query string for server-side filtering
-    const params = new URLSearchParams();
+    const params = new URLSearchParams({
+      page: "0",
+      pageSize: String(pagination.pageSize),
+    });
 
     Object.entries(newFilters).forEach(([key, val]) => {
       if (!val) return;
@@ -389,7 +393,9 @@ export function DataTable<TData extends Record<string, any>, TValue>({
 
       const json = await res.json();
       setData(json.data);
-      if (json.totalPages) setServerTotalPages(json.totalPages);
+
+      setServerTotalPages(json.totalPages ?? 1);
+      setPagination((prev) => ({ ...prev, pageIndex: 0 }));
     } catch (error) {
       console.error("Filter fetch failed:", error);
     }
@@ -753,47 +759,49 @@ export function DataTable<TData extends Record<string, any>, TValue>({
         {/* RIGHT SIDE — Export + Columns */}
         <div className="flex flex-wrap items-center gap-2">
           {/* checked selectd */}
-          <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="outline"
-                className="font-normal"
-                disabled={Object.keys(rowSelection).length === 0}
-              >
-                Actions{" "}
-                <ChevronDown className="ml-2 h-4 w-4 text-muted-foreground" />
-              </Button>
-            </DropdownMenuTrigger>
+          {enableRowSelection && (
+            <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="font-normal"
+                  disabled={Object.keys(rowSelection).length === 0}
+                >
+                  Actions{" "}
+                  <ChevronDown className="ml-2 h-4 w-4 text-muted-foreground" />
+                </Button>
+              </DropdownMenuTrigger>
 
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Selected Rows Actions</DropdownMenuLabel>
+              <DropdownMenuContent align="end">
+                <DropdownMenuLabel>Selected Rows Actions</DropdownMenuLabel>
 
-              <BulkDeleteDialog
-                selectedRows={table
-                  .getSelectedRowModel()
-                  .rows.map((r) => r.original)}
-                onConfirm={(rows) => {
-                  onBulkDelete?.(rows);
-                  table.resetRowSelection();
-                }}
-                onAfterDelete={() => setMenuOpen(false)}
-              />
+                <BulkDeleteDialog
+                  selectedRows={table
+                    .getSelectedRowModel()
+                    .rows.map((r) => r.original)}
+                  onConfirm={(rows) => {
+                    onBulkDelete?.(rows);
+                    table.resetRowSelection();
+                  }}
+                  onAfterDelete={() => setMenuOpen(false)}
+                />
 
-              <DropdownMenuItem onClick={exportSelectedToCSV}>
-                Export CSV
-              </DropdownMenuItem>
+                <DropdownMenuItem onClick={exportSelectedToCSV}>
+                  Export CSV
+                </DropdownMenuItem>
 
-              <DropdownMenuItem onClick={exportSelectedToExcel}>
-                Export Excel
-              </DropdownMenuItem>
+                <DropdownMenuItem onClick={exportSelectedToExcel}>
+                  Export Excel
+                </DropdownMenuItem>
 
-              <DropdownMenuItem onClick={exportSelectedToPDF}>
-                Export PDF
-              </DropdownMenuItem>
+                <DropdownMenuItem onClick={exportSelectedToPDF}>
+                  Export PDF
+                </DropdownMenuItem>
 
-              {/* Add more actions as needed */}
-            </DropdownMenuContent>
-          </DropdownMenu>
+                {/* Add more actions as needed */}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
 
           {/* Export Dropdown */}
           <DropdownMenu>
