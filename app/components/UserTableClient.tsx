@@ -72,7 +72,7 @@ export default function UserTableClient({
             { label: "English", value: "English" },
           ],
         },
-        { column: "createdAt", type: "date", mode: "range" },
+        { column: "createdat", type: "date", mode: "range" },
       ]}
     />
   );
