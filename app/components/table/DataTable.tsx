@@ -34,8 +34,11 @@ import {
   Check,
   ChevronDown,
   ChevronDownIcon,
+  Filter,
+  MoreHorizontal,
   Search,
   SearchX,
+  Settings,
   X,
 } from "lucide-react";
 import * as XLSX from "xlsx";
@@ -77,6 +80,7 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
+import { cn } from "@/lib/utils";
 
 type FilterType = "select" | "text" | "date" | "number" | "boolean";
 
@@ -124,6 +128,7 @@ interface DataTableProps<TData extends Record<string, any>, TValue> {
   serverPagination?: boolean;
   apiUrl?: string;
   paginationTheme?: "simple" | "shadcn";
+  filterLayout?: "inline" | "dropdown";
   rowColSpans?: RowColSpans;
   headerColSpans?: HeaderColSpans;
   filterConfig?: FilterConfig[];
@@ -144,6 +149,7 @@ export function DataTable<TData extends Record<string, any>, TValue>({
   serverPagination,
   apiUrl,
   paginationTheme,
+  filterLayout = "inline",
   rowColSpans,
   headerColSpans,
   filterConfig,
@@ -158,6 +164,7 @@ export function DataTable<TData extends Record<string, any>, TValue>({
   const [serverTotalPages, setServerTotalPages] = React.useState(
     totalPages || 1
   );
+  const [hoveredCol, setHoveredCol] = React.useState<string | null>(null);
   const [menuOpen, setMenuOpen] = React.useState(false);
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
@@ -181,7 +188,11 @@ export function DataTable<TData extends Record<string, any>, TValue>({
     if (renderRowActions) {
       baseCols.push({
         id: "actions",
-        header: "Actions",
+        header: () => (
+          <div className="flex justify-center">
+            <Settings className="h-4 w-4 text-muted-foreground" />
+          </div>
+        ),
         cell: ({ row }) => (
           <div className="flex items-center justify-end gap-2">
             {renderRowActions(row.original)}
@@ -406,105 +417,178 @@ export function DataTable<TData extends Record<string, any>, TValue>({
       {/* FILTERS & EXPORT */}
       <div className="flex flex-wrap justify-between items-center gap-3">
         {/* LEFT SIDE — Search + Custom Filters */}
-        <div className="flex flex-wrap flex-grow items-center gap-2">
+        <div className="flex flex-wrap flex-grow items-center gap-2 w-md-full">
           <div className="relative">
             <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Table search ..."
               value={globalFilter}
               onChange={(e) => setGlobalFilter(e.target.value)}
-              className="pl-8 max-w-xs" // add padding-left for icon space
+              className="pl-8 max-w-xs w-full"
             />
           </div>
 
           {/* Dynamically render filters passed as props */}
-          {filterConfig?.map((filter) => {
-            const col = table.getColumn(filter.column);
-            if (!col) return null;
+          {filterLayout === "inline" &&
+            filterConfig?.map((filter) => {
+              const col = table.getColumn(filter.column);
+              if (!col) return null;
 
-            switch (filter.type) {
-              case "select":
-                return (
-                  <Select
-                    key={filter.column}
-                    value={
-                      filter.isMulti
-                        ? (col.getFilterValue() as string[] | undefined)?.join(
-                            ","
-                          ) || "__all__"
-                        : col.getFilterValue() === undefined
-                        ? "__all__"
-                        : String(col.getFilterValue())
-                    }
-                    onValueChange={(value) => {
-                      let newValue: any;
-
-                      if (filter.isMulti) {
-                        const current: string[] =
-                          (col.getFilterValue() as string[]) || [];
-                        const newValues = current.includes(value)
-                          ? current.filter((v) => v !== value)
-                          : [...current, value];
-                        newValue =
-                          newValues.length === 0 ? undefined : newValues;
-                      } else {
-                        newValue = value === "__all__" ? undefined : value;
-                      }
-
-                      col.setFilterValue(newValue);
-
-                      // Update central filter state
-                      const updatedFilters = {
-                        ...filterValues,
-                        [filter.column]: newValue,
-                      };
-
-                      // setFilterValues(updatedFilters);
-
-                      // Call optional callback for AJAX
-                      // filter.onChange?.(newValue, updatedFilters);
-
-                      if (apiUrl) {
-                        handleFilterChange(updatedFilters);
-                      } else {
-                        filter.onChange?.(newValue, updatedFilters);
-                      }
-                    }}
-                  >
-                    <SelectTrigger className="w-36">
-                      <SelectValue>
-                        {filter.isMulti
-                          ? (col.getFilterValue() as string[] | undefined)
-                              ?.length
-                            ? (col.getFilterValue() as string[])
-                                .map(
-                                  (v) =>
-                                    filter.options?.find(
-                                      (opt) => opt.value === v
-                                    )?.label || v
-                                )
-                                .join(", ")
-                            : filter.options?.find((opt) => opt.value === "")
-                                ?.label || "All"
+              switch (filter.type) {
+                case "select":
+                  return (
+                    <Select
+                      key={filter.column}
+                      value={
+                        filter.isMulti
+                          ? (
+                              col.getFilterValue() as string[] | undefined
+                            )?.join(",") || "__all__"
                           : col.getFilterValue() === undefined
-                          ? filter.options?.find((opt) => opt.value === "")
-                              ?.label || "All"
-                          : filter.options?.find(
-                              (opt) =>
-                                opt.value === String(col.getFilterValue())
-                            )?.label || ""}
-                      </SelectValue>
-                    </SelectTrigger>
+                          ? "__all__"
+                          : String(col.getFilterValue())
+                      }
+                      onValueChange={(value) => {
+                        let newValue: any;
 
-                    <SelectContent className="max-h-100 overflow-y-auto">
-                      {filter.isSearchable ? (
-                        <Command>
-                          <CommandInput
-                            placeholder={`Search ${filter.label || ""}...`}
-                          />
-                          <CommandEmpty>No results found.</CommandEmpty>
+                        if (filter.isMulti) {
+                          const current: string[] =
+                            (col.getFilterValue() as string[]) || [];
+                          const newValues = current.includes(value)
+                            ? current.filter((v) => v !== value)
+                            : [...current, value];
+                          newValue =
+                            newValues.length === 0 ? undefined : newValues;
+                        } else {
+                          newValue = value === "__all__" ? undefined : value;
+                        }
 
-                          <CommandGroup>
+                        col.setFilterValue(newValue);
+
+                        // Update central filter state
+                        const updatedFilters = {
+                          ...filterValues,
+                          [filter.column]: newValue,
+                        };
+
+                        // setFilterValues(updatedFilters);
+
+                        // Call optional callback for AJAX
+                        // filter.onChange?.(newValue, updatedFilters);
+
+                        if (apiUrl) {
+                          handleFilterChange(updatedFilters);
+                        } else {
+                          filter.onChange?.(newValue, updatedFilters);
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="w-36">
+                        <SelectValue>
+                          {filter.isMulti
+                            ? (col.getFilterValue() as string[] | undefined)
+                                ?.length
+                              ? (col.getFilterValue() as string[])
+                                  .map(
+                                    (v) =>
+                                      filter.options?.find(
+                                        (opt) => opt.value === v
+                                      )?.label || v
+                                  )
+                                  .join(", ")
+                              : filter.options?.find((opt) => opt.value === "")
+                                  ?.label || "All"
+                            : col.getFilterValue() === undefined
+                            ? filter.options?.find((opt) => opt.value === "")
+                                ?.label || "All"
+                            : filter.options?.find(
+                                (opt) =>
+                                  opt.value === String(col.getFilterValue())
+                              )?.label || ""}
+                        </SelectValue>
+                      </SelectTrigger>
+
+                      <SelectContent className="max-h-100 overflow-y-auto">
+                        {filter.isSearchable ? (
+                          <Command>
+                            <CommandInput
+                              placeholder={`Search ${filter.label || ""}...`}
+                            />
+                            <CommandEmpty>No results found.</CommandEmpty>
+
+                            <CommandGroup>
+                              {filter.options?.map((opt) => {
+                                const val =
+                                  opt.value === "" ? "__all__" : opt.value; // fix empty string
+                                const selected = filter.isMulti
+                                  ? (
+                                      col.getFilterValue() as
+                                        | string[]
+                                        | undefined
+                                    )?.includes(opt.value)
+                                  : col.getFilterValue() === opt.value;
+
+                                return (
+                                  <CommandItem
+                                    key={val}
+                                    value={val}
+                                    onSelect={(v) => {
+                                      const actualValue =
+                                        v === "__all__" ? "" : v; // convert back
+                                      if (filter.isMulti) {
+                                        // Get current selected values or empty array
+                                        const current: string[] =
+                                          (col.getFilterValue() as string[]) ||
+                                          [];
+
+                                        // Check if actualValue is already selected
+                                        let newValues: string[];
+                                        if (actualValue === "") {
+                                          // Selecting "All" clears other selections
+                                          newValues = [];
+                                        } else if (
+                                          current.includes(actualValue)
+                                        ) {
+                                          // Remove value if already selected
+                                          newValues = current.filter(
+                                            (x) => x !== actualValue
+                                          );
+                                        } else {
+                                          // Add new value
+                                          newValues = [...current, actualValue];
+                                        }
+
+                                        // Update filter value (undefined = no filter)
+                                        col.setFilterValue(
+                                          newValues.length === 0
+                                            ? undefined
+                                            : newValues
+                                        );
+                                      } else {
+                                        col.setFilterValue(
+                                          actualValue === ""
+                                            ? undefined
+                                            : actualValue
+                                        );
+                                      }
+                                    }}
+                                  >
+                                    <label>{opt.label}</label>
+                                    {filter.isMulti &&
+                                      (
+                                        col.getFilterValue() as
+                                          | string[]
+                                          | undefined
+                                      )?.includes(opt.value) && (
+                                        <Check className="ml-auto h-4 w-4" />
+                                      )}
+                                  </CommandItem>
+                                );
+                              })}
+                            </CommandGroup>
+                          </Command>
+                        ) : (
+                          <SelectGroup>
                             {filter.options?.map((opt) => {
                               const val =
                                 opt.value === "" ? "__all__" : opt.value; // fix empty string
@@ -515,245 +599,175 @@ export function DataTable<TData extends Record<string, any>, TValue>({
                                 : col.getFilterValue() === opt.value;
 
                               return (
-                                <CommandItem
-                                  key={val}
-                                  value={val}
-                                  onSelect={(v) => {
-                                    const actualValue =
-                                      v === "__all__" ? "" : v; // convert back
-                                    if (filter.isMulti) {
-                                      // Get current selected values or empty array
-                                      const current: string[] =
-                                        (col.getFilterValue() as string[]) ||
-                                        [];
-
-                                      // Check if actualValue is already selected
-                                      let newValues: string[];
-                                      if (actualValue === "") {
-                                        // Selecting "All" clears other selections
-                                        newValues = [];
-                                      } else if (
-                                        current.includes(actualValue)
-                                      ) {
-                                        // Remove value if already selected
-                                        newValues = current.filter(
-                                          (x) => x !== actualValue
-                                        );
-                                      } else {
-                                        // Add new value
-                                        newValues = [...current, actualValue];
-                                      }
-
-                                      // Update filter value (undefined = no filter)
-                                      col.setFilterValue(
-                                        newValues.length === 0
-                                          ? undefined
-                                          : newValues
-                                      );
-                                    } else {
-                                      col.setFilterValue(
-                                        actualValue === ""
-                                          ? undefined
-                                          : actualValue
-                                      );
-                                    }
-                                  }}
-                                >
-                                  <label>{opt.label}</label>
-                                  {filter.isMulti &&
-                                    (
-                                      col.getFilterValue() as
-                                        | string[]
-                                        | undefined
-                                    )?.includes(opt.value) && (
-                                      <Check className="ml-auto h-4 w-4" />
-                                    )}
-                                </CommandItem>
+                                <SelectItem key={val} value={val}>
+                                  <span>{opt.label}</span>
+                                </SelectItem>
                               );
                             })}
-                          </CommandGroup>
-                        </Command>
-                      ) : (
-                        <SelectGroup>
-                          {filter.options?.map((opt) => {
-                            const val =
-                              opt.value === "" ? "__all__" : opt.value; // fix empty string
-                            const selected = filter.isMulti
-                              ? (
-                                  col.getFilterValue() as string[] | undefined
-                                )?.includes(opt.value)
-                              : col.getFilterValue() === opt.value;
+                          </SelectGroup>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  );
 
-                            return (
-                              <SelectItem key={val} value={val}>
-                                <span>{opt.label}</span>
-                              </SelectItem>
-                            );
-                          })}
-                        </SelectGroup>
-                      )}
-                    </SelectContent>
-                  </Select>
-                );
+                case "text":
+                  return (
+                    <Input
+                      key={filter.column}
+                      placeholder={filter.placeholder || filter.label}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        col.setFilterValue(value);
 
-              case "text":
-                return (
-                  <Input
-                    key={filter.column}
-                    placeholder={filter.placeholder || filter.label}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      col.setFilterValue(value);
+                        const updatedFilters = {
+                          ...filterValues,
+                          [filter.column]: value,
+                        };
+                        // setFilterValues(updatedFilters);
 
-                      const updatedFilters = {
-                        ...filterValues,
-                        [filter.column]: value,
-                      };
-                      // setFilterValues(updatedFilters);
+                        // filter.onChange?.(value, updatedFilters);
 
-                      // filter.onChange?.(value, updatedFilters);
+                        if (apiUrl) {
+                          handleFilterChange(updatedFilters);
+                        } else {
+                          filter.onChange?.(value, updatedFilters);
+                        }
+                      }}
+                      className="max-w-fit"
+                    />
+                  );
 
-                      if (apiUrl) {
-                        handleFilterChange(updatedFilters);
-                      } else {
-                        filter.onChange?.(value, updatedFilters);
-                      }
-                    }}
-                    className="max-w-fit"
-                  />
-                );
+                case "date": {
+                  const isRangeMode = filter.mode === "range";
 
-              case "date": {
-                const isRangeMode = filter.mode === "range";
+                  const currentValue = col.getFilterValue() as
+                    | Date
+                    | DateRange
+                    | undefined;
 
-                const currentValue = col.getFilterValue() as
-                  | Date
-                  | DateRange
-                  | undefined;
+                  return (
+                    <Popover key={filter.column}>
+                      <div
+                        className={`relative flex items-center ${
+                          isRangeMode ? "w-56" : "w-36"
+                        }`}
+                      >
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            id="date"
+                            className={`justify-between font-normal w-full`}
+                          >
+                            {isRangeMode
+                              ? currentValue && (currentValue as DateRange).from
+                                ? (currentValue as DateRange).to
+                                  ? `${format(
+                                      (currentValue as DateRange).from!,
+                                      "yyyy-MM-dd"
+                                    )} → ${format(
+                                      (currentValue as DateRange).to!,
+                                      "yyyy-MM-dd"
+                                    )}`
+                                  : format(
+                                      (currentValue as DateRange).from!,
+                                      "yyyy-MM-dd"
+                                    )
+                                : filter.label || "Select Date Range"
+                              : currentValue
+                              ? format(currentValue as Date, "yyyy-MM-dd")
+                              : filter.label || "Select Date"}
+                            {!currentValue && (
+                              <ChevronDownIcon className="ml-2 h-4 w-4 text-muted-foreground" />
+                            )}
+                          </Button>
+                        </PopoverTrigger>
 
-                return (
-                  <Popover key={filter.column}>
-                    <div
-                      className={`relative flex items-center ${
-                        isRangeMode ? "w-56" : "w-36"
-                      }`}
-                    >
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          id="date"
-                          className={`justify-between font-normal w-full`}
-                        >
-                          {isRangeMode
-                            ? currentValue && (currentValue as DateRange).from
-                              ? (currentValue as DateRange).to
-                                ? `${format(
-                                    (currentValue as DateRange).from!,
-                                    "yyyy-MM-dd"
-                                  )} → ${format(
-                                    (currentValue as DateRange).to!,
-                                    "yyyy-MM-dd"
-                                  )}`
-                                : format(
-                                    (currentValue as DateRange).from!,
-                                    "yyyy-MM-dd"
-                                  )
-                              : filter.label || "Select Date Range"
-                            : currentValue
-                            ? format(currentValue as Date, "yyyy-MM-dd")
-                            : filter.label || "Select Date"}
-                          {!currentValue && (
-                            <ChevronDownIcon className="ml-2 h-4 w-4 text-muted-foreground" />
-                          )}
-                        </Button>
-                      </PopoverTrigger>
+                        {currentValue && (
+                          <button
+                            className="absolute right-3 top-1/2 -translate-y-1/2"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              col.setFilterValue(undefined);
+                              const updatedFilters = {
+                                ...filterValues,
+                                [filter.column]: undefined,
+                              };
+                              setFilterValues(updatedFilters);
 
-                      {currentValue && (
-                        <button
-                          className="absolute right-3 top-1/2 -translate-y-1/2"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            col.setFilterValue(undefined);
+                              // filter.onChange?.(undefined, updatedFilters);
+
+                              if (apiUrl) {
+                                handleFilterChange(updatedFilters);
+                              } else {
+                                filter.onChange?.(undefined, updatedFilters);
+                              }
+                            }}
+                          >
+                            <X className="h-4 w-4 text-muted-foreground" />
+                          </button>
+                        )}
+                      </div>
+
+                      <PopoverContent className="w-auto p-0">
+                        <Calendar
+                          mode={isRangeMode ? "range" : "single"}
+                          numberOfMonths={isRangeMode ? 2 : 1}
+                          required={isRangeMode ? false : undefined}
+                          selected={currentValue as any}
+                          onSelect={(val: Date | DateRange | undefined) => {
+                            const newValue = val ?? undefined;
+                            col.setFilterValue(newValue);
                             const updatedFilters = {
                               ...filterValues,
-                              [filter.column]: undefined,
+                              [filter.column]: newValue,
                             };
                             setFilterValues(updatedFilters);
-
-                            // filter.onChange?.(undefined, updatedFilters);
+                            // filter.onChange?.(newValue, updatedFilters);
 
                             if (apiUrl) {
                               handleFilterChange(updatedFilters);
                             } else {
-                              filter.onChange?.(undefined, updatedFilters);
+                              filter.onChange?.(newValue, updatedFilters);
                             }
                           }}
-                        >
-                          <X className="h-4 w-4 text-muted-foreground" />
-                        </button>
-                      )}
-                    </div>
+                          className="rounded-md"
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  );
+                }
 
-                    <PopoverContent className="w-auto p-0">
-                      <Calendar
-                        mode={isRangeMode ? "range" : "single"}
-                        numberOfMonths={isRangeMode ? 2 : 1}
-                        required={isRangeMode ? false : undefined}
-                        selected={currentValue as any}
-                        onSelect={(val: Date | DateRange | undefined) => {
-                          const newValue = val ?? undefined;
-                          col.setFilterValue(newValue);
-                          const updatedFilters = {
-                            ...filterValues,
-                            [filter.column]: newValue,
-                          };
-                          setFilterValues(updatedFilters);
-                          // filter.onChange?.(newValue, updatedFilters);
+                case "number":
+                  return (
+                    <Input
+                      key={filter.column}
+                      type="number"
+                      placeholder={filter.placeholder || filter.label}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        col.setFilterValue(value);
 
-                          if (apiUrl) {
-                            handleFilterChange(updatedFilters);
-                          } else {
-                            filter.onChange?.(newValue, updatedFilters);
-                          }
-                        }}
-                        className="rounded-md"
-                      />
-                    </PopoverContent>
-                  </Popover>
-                );
+                        const updatedFilters = {
+                          ...filterValues,
+                          [filter.column]: value,
+                        };
+                        setFilterValues(updatedFilters);
+
+                        // filter.onChange?.(value, updatedFilters);
+
+                        if (apiUrl) {
+                          handleFilterChange(updatedFilters);
+                        } else {
+                          filter.onChange?.(value, updatedFilters);
+                        }
+                      }}
+                    />
+                  );
+
+                default:
+                  return null;
               }
-
-              case "number":
-                return (
-                  <Input
-                    key={filter.column}
-                    type="number"
-                    placeholder={filter.placeholder || filter.label}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      col.setFilterValue(value);
-
-                      const updatedFilters = {
-                        ...filterValues,
-                        [filter.column]: value,
-                      };
-                      setFilterValues(updatedFilters);
-
-                      // filter.onChange?.(value, updatedFilters);
-
-                      if (apiUrl) {
-                        handleFilterChange(updatedFilters);
-                      } else {
-                        filter.onChange?.(value, updatedFilters);
-                      }
-                    }}
-                  />
-                );
-
-              default:
-                return null;
-            }
-          })}
+            })}
         </div>
 
         {/* RIGHT SIDE — Export + Columns */}
@@ -846,11 +860,379 @@ export function DataTable<TData extends Record<string, any>, TValue>({
                 ))}
             </DropdownMenuContent>
           </DropdownMenu>
+
+          {/* advance filter */}
+          {filterLayout === "dropdown" && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="font-normal">
+                  <Filter className="h-4 w-4 text-muted-foreground" />
+                  Advance Filter
+                  <ChevronDown className="ml-2 h-4 w-4 text-muted-foreground" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="end"
+                className="p-4 w-80 max-h-96 overflow-y-auto"
+              >
+                {/* Dynamically render filters passed as props */}
+                {filterConfig?.map((filter) => {
+                  const col = table.getColumn(filter.column);
+                  if (!col) return null;
+
+                  switch (filter.type) {
+                    case "select":
+                      return (
+                        <Select
+                          key={filter.column}
+                          value={
+                            filter.isMulti
+                              ? (
+                                  col.getFilterValue() as string[] | undefined
+                                )?.join(",") || "__all__"
+                              : col.getFilterValue() === undefined
+                              ? "__all__"
+                              : String(col.getFilterValue())
+                          }
+                          onValueChange={(value) => {
+                            let newValue: any;
+
+                            if (filter.isMulti) {
+                              const current: string[] =
+                                (col.getFilterValue() as string[]) || [];
+                              const newValues = current.includes(value)
+                                ? current.filter((v) => v !== value)
+                                : [...current, value];
+                              newValue =
+                                newValues.length === 0 ? undefined : newValues;
+                            } else {
+                              newValue =
+                                value === "__all__" ? undefined : value;
+                            }
+
+                            col.setFilterValue(newValue);
+
+                            // Update central filter state
+                            const updatedFilters = {
+                              ...filterValues,
+                              [filter.column]: newValue,
+                            };
+
+                            // setFilterValues(updatedFilters);
+
+                            // Call optional callback for AJAX
+                            // filter.onChange?.(newValue, updatedFilters);
+
+                            if (apiUrl) {
+                              handleFilterChange(updatedFilters);
+                            } else {
+                              filter.onChange?.(newValue, updatedFilters);
+                            }
+                          }}
+                        >
+                          <SelectTrigger className="w-full mb-3">
+                            <SelectValue>
+                              {filter.isMulti
+                                ? (col.getFilterValue() as string[] | undefined)
+                                    ?.length
+                                  ? (col.getFilterValue() as string[])
+                                      .map(
+                                        (v) =>
+                                          filter.options?.find(
+                                            (opt) => opt.value === v
+                                          )?.label || v
+                                      )
+                                      .join(", ")
+                                  : filter.options?.find(
+                                      (opt) => opt.value === ""
+                                    )?.label || "All"
+                                : col.getFilterValue() === undefined
+                                ? filter.options?.find(
+                                    (opt) => opt.value === ""
+                                  )?.label || "All"
+                                : filter.options?.find(
+                                    (opt) =>
+                                      opt.value === String(col.getFilterValue())
+                                  )?.label || ""}
+                            </SelectValue>
+                          </SelectTrigger>
+
+                          <SelectContent className="max-h-100 overflow-y-auto">
+                            {filter.isSearchable ? (
+                              <Command>
+                                <CommandInput
+                                  placeholder={`Search ${
+                                    filter.label || ""
+                                  }...`}
+                                />
+                                <CommandEmpty>No results found.</CommandEmpty>
+
+                                <CommandGroup>
+                                  {filter.options?.map((opt) => {
+                                    const val =
+                                      opt.value === "" ? "__all__" : opt.value; // fix empty string
+                                    const selected = filter.isMulti
+                                      ? (
+                                          col.getFilterValue() as
+                                            | string[]
+                                            | undefined
+                                        )?.includes(opt.value)
+                                      : col.getFilterValue() === opt.value;
+
+                                    return (
+                                      <CommandItem
+                                        key={val}
+                                        value={val}
+                                        onSelect={(v) => {
+                                          const actualValue =
+                                            v === "__all__" ? "" : v; // convert back
+                                          if (filter.isMulti) {
+                                            // Get current selected values or empty array
+                                            const current: string[] =
+                                              (col.getFilterValue() as string[]) ||
+                                              [];
+
+                                            // Check if actualValue is already selected
+                                            let newValues: string[];
+                                            if (actualValue === "") {
+                                              // Selecting "All" clears other selections
+                                              newValues = [];
+                                            } else if (
+                                              current.includes(actualValue)
+                                            ) {
+                                              // Remove value if already selected
+                                              newValues = current.filter(
+                                                (x) => x !== actualValue
+                                              );
+                                            } else {
+                                              // Add new value
+                                              newValues = [
+                                                ...current,
+                                                actualValue,
+                                              ];
+                                            }
+
+                                            // Update filter value (undefined = no filter)
+                                            col.setFilterValue(
+                                              newValues.length === 0
+                                                ? undefined
+                                                : newValues
+                                            );
+                                          } else {
+                                            col.setFilterValue(
+                                              actualValue === ""
+                                                ? undefined
+                                                : actualValue
+                                            );
+                                          }
+                                        }}
+                                      >
+                                        <label>{opt.label}</label>
+                                        {filter.isMulti &&
+                                          (
+                                            col.getFilterValue() as
+                                              | string[]
+                                              | undefined
+                                          )?.includes(opt.value) && (
+                                            <Check className="ml-auto h-4 w-4" />
+                                          )}
+                                      </CommandItem>
+                                    );
+                                  })}
+                                </CommandGroup>
+                              </Command>
+                            ) : (
+                              <SelectGroup>
+                                {filter.options?.map((opt) => {
+                                  const val =
+                                    opt.value === "" ? "__all__" : opt.value; // fix empty string
+                                  const selected = filter.isMulti
+                                    ? (
+                                        col.getFilterValue() as
+                                          | string[]
+                                          | undefined
+                                      )?.includes(opt.value)
+                                    : col.getFilterValue() === opt.value;
+
+                                  return (
+                                    <SelectItem key={val} value={val}>
+                                      <span>{opt.label}</span>
+                                    </SelectItem>
+                                  );
+                                })}
+                              </SelectGroup>
+                            )}
+                          </SelectContent>
+                        </Select>
+                      );
+
+                    case "text":
+                      return (
+                        <Input
+                          key={filter.column}
+                          placeholder={filter.placeholder || filter.label}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            col.setFilterValue(value);
+
+                            const updatedFilters = {
+                              ...filterValues,
+                              [filter.column]: value,
+                            };
+                            // setFilterValues(updatedFilters);
+
+                            // filter.onChange?.(value, updatedFilters);
+
+                            if (apiUrl) {
+                              handleFilterChange(updatedFilters);
+                            } else {
+                              filter.onChange?.(value, updatedFilters);
+                            }
+                          }}
+                          className="w-full mb-3"
+                        />
+                      );
+
+                    case "date": {
+                      const isRangeMode = filter.mode === "range";
+
+                      const currentValue = col.getFilterValue() as
+                        | Date
+                        | DateRange
+                        | undefined;
+
+                      return (
+                        <Popover key={filter.column}>
+                          <div className="relative flex items-center mb-3 w-full">
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant="outline"
+                                id="date"
+                                className={`justify-between font-normal w-full`}
+                              >
+                                {isRangeMode
+                                  ? currentValue &&
+                                    (currentValue as DateRange).from
+                                    ? (currentValue as DateRange).to
+                                      ? `${format(
+                                          (currentValue as DateRange).from!,
+                                          "yyyy-MM-dd"
+                                        )} → ${format(
+                                          (currentValue as DateRange).to!,
+                                          "yyyy-MM-dd"
+                                        )}`
+                                      : format(
+                                          (currentValue as DateRange).from!,
+                                          "yyyy-MM-dd"
+                                        )
+                                    : filter.label || "Select Date Range"
+                                  : currentValue
+                                  ? format(currentValue as Date, "yyyy-MM-dd")
+                                  : filter.label || "Select Date"}
+                                {!currentValue && (
+                                  <ChevronDownIcon className="ml-2 h-4 w-4 text-muted-foreground" />
+                                )}
+                              </Button>
+                            </PopoverTrigger>
+
+                            {currentValue && (
+                              <button
+                                className="absolute right-3 top-1/2 -translate-y-1/2"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  col.setFilterValue(undefined);
+                                  const updatedFilters = {
+                                    ...filterValues,
+                                    [filter.column]: undefined,
+                                  };
+                                  setFilterValues(updatedFilters);
+
+                                  // filter.onChange?.(undefined, updatedFilters);
+
+                                  if (apiUrl) {
+                                    handleFilterChange(updatedFilters);
+                                  } else {
+                                    filter.onChange?.(
+                                      undefined,
+                                      updatedFilters
+                                    );
+                                  }
+                                }}
+                              >
+                                <X className="h-4 w-4 text-muted-foreground" />
+                              </button>
+                            )}
+                          </div>
+
+                          <PopoverContent className="w-auto p-0">
+                            <Calendar
+                              mode={isRangeMode ? "range" : "single"}
+                              numberOfMonths={isRangeMode ? 2 : 1}
+                              required={isRangeMode ? false : undefined}
+                              selected={currentValue as any}
+                              onSelect={(val: Date | DateRange | undefined) => {
+                                const newValue = val ?? undefined;
+                                col.setFilterValue(newValue);
+                                const updatedFilters = {
+                                  ...filterValues,
+                                  [filter.column]: newValue,
+                                };
+                                setFilterValues(updatedFilters);
+                                // filter.onChange?.(newValue, updatedFilters);
+
+                                if (apiUrl) {
+                                  handleFilterChange(updatedFilters);
+                                } else {
+                                  filter.onChange?.(newValue, updatedFilters);
+                                }
+                              }}
+                              className="rounded-md"
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      );
+                    }
+
+                    case "number":
+                      return (
+                        <Input
+                          key={filter.column}
+                          type="number"
+                          placeholder={filter.placeholder || filter.label}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            col.setFilterValue(value);
+
+                            const updatedFilters = {
+                              ...filterValues,
+                              [filter.column]: value,
+                            };
+                            setFilterValues(updatedFilters);
+
+                            // filter.onChange?.(value, updatedFilters);
+
+                            if (apiUrl) {
+                              handleFilterChange(updatedFilters);
+                            } else {
+                              filter.onChange?.(value, updatedFilters);
+                            }
+                          }}
+                          className="w-full mb-3"
+                        />
+                      );
+
+                    default:
+                      return null;
+                  }
+                })}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
       </div>
 
       {/* TABLE */}
-      <div className="rounded-md border overflow-auto relative">
+      <div className="rounded-md border overflow-auto relative min-h-full max-h-[1220px]">
         <Table className="relative">
           <TableHeader
             className={stickyHeader ? "sticky top-0 bg-accent z-10" : ""}
@@ -859,23 +1241,25 @@ export function DataTable<TData extends Record<string, any>, TValue>({
               <TableRow key={headerGroup.id}>
                 {enableRowSelection && (
                   <TableHead
-                    className={`w-8 text-sm bg-accent`}
+                    className={`text-sm bg-accent sticky left-0 z-10`}
                     rowSpan={headerColSpans?.select?.rowSpan}
                     colSpan={headerColSpans?.select?.colSpan}
                   >
-                    <Checkbox
-                      checked={table.getIsAllRowsSelected()}
-                      onCheckedChange={(value) =>
-                        table.toggleAllRowsSelected(!!value)
-                      }
-                      aria-label="Select all rows"
-                      className="bg-white"
-                      ref={(el) => {
-                        if (el)
-                          (el as any).indeterminate =
-                            table.getIsSomeRowsSelected();
-                      }}
-                    />
+                    <div className="w-7 flex">
+                      <Checkbox
+                        checked={table.getIsAllRowsSelected()}
+                        onCheckedChange={(value) =>
+                          table.toggleAllRowsSelected(!!value)
+                        }
+                        aria-label="Select all rows"
+                        className="bg-white"
+                        ref={(el) => {
+                          if (el)
+                            (el as any).indeterminate =
+                              table.getIsSomeRowsSelected();
+                        }}
+                      />
+                    </div>
                   </TableHead>
                 )}
 
@@ -889,7 +1273,7 @@ export function DataTable<TData extends Record<string, any>, TValue>({
                       key={header.id}
                       onClick={header.column.getToggleSortingHandler()}
                       className={`cursor-pointer select-none text-sm bg-accent ${
-                        isActionCol ? "text-right" : ""
+                        isActionCol ? "text-right sticky right-0 z-10" : ""
                       } ${
                         spans.colSpan || spans.rowSpan
                           ? "border-l border-r"
@@ -900,19 +1284,25 @@ export function DataTable<TData extends Record<string, any>, TValue>({
                     >
                       <div
                         className={`flex items-center gap-1 ${
-                          isActionCol ? "justify-end" : ""
+                          isActionCol ? "justify-center" : ""
                         }`}
                       >
                         {flexRender(
                           header.column.columnDef.header,
                           header.getContext()
                         )}
-                        {isSorted === "asc" && <BiSortUp className="h-4 w-4" />}
-                        {isSorted === "desc" && (
-                          <BiSortDown className="h-4 w-4" />
-                        )}
-                        {!isSorted && (
-                          <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
+                        {!isActionCol && (
+                          <>
+                            {isSorted === "asc" && (
+                              <BiSortUp className="h-4 w-4" />
+                            )}
+                            {isSorted === "desc" && (
+                              <BiSortDown className="h-4 w-4" />
+                            )}
+                            {!isSorted && (
+                              <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
+                            )}
+                          </>
                         )}
                       </div>
                     </TableHead>
@@ -927,39 +1317,54 @@ export function DataTable<TData extends Record<string, any>, TValue>({
               table.getPaginationRowModel().rows.map((row) => (
                 <TableRow
                   key={row.id}
-                  className={row.getIsSelected() ? "bg-gray-200" : ""}
+                  className={cn(
+                    row.getIsSelected() ? "bg-gray-200" : "",
+                    "hover:bg-gray-100"
+                  )}
                 >
                   {enableRowSelection && (
                     <TableCell
                       className={
                         row.getIsSelected()
-                          ? "border-l-2 border-l-green-500"
-                          : ""
+                          ? "border-l-2 border-l-green-500 sticky left-0 bg-gray-200 z-20"
+                          : "sticky left-0 bg-background z-20"
                       }
                     >
-                      <Checkbox
-                        checked={row.getIsSelected()}
-                        onCheckedChange={(value) => row.toggleSelected(!!value)}
-                        aria-label="Select row"
-                        ref={(el) => {
-                          if (el)
-                            (el as any).indeterminate = row.getIsSomeSelected();
-                        }}
-                      />
+                      {" "}
+                      <div className="w-7 flex">
+                        <Checkbox
+                          checked={row.getIsSelected()}
+                          onCheckedChange={(value) =>
+                            row.toggleSelected(!!value)
+                          }
+                          aria-label="Select row"
+                          ref={(el) => {
+                            if (el)
+                              (el as any).indeterminate =
+                                row.getIsSomeSelected();
+                          }}
+                        />
+                      </div>
                     </TableCell>
                   )}
                   {row.getVisibleCells().map((cell) => {
                     const spans = rowColSpans?.[row.id]?.[cell.column.id] || {};
+                    const isActionsCol = cell.column.id === "actions";
+
                     return (
                       <TableCell
                         key={cell.id}
+                        onMouseEnter={() => setHoveredCol(cell.column.id)}
+                        onMouseLeave={() => setHoveredCol(null)}
                         colSpan={spans.colSpan}
                         rowSpan={spans.rowSpan}
-                        className={
+                        className={cn(
                           spans.colSpan || spans.rowSpan
                             ? "border-l border-r"
-                            : ""
-                        }
+                            : "",
+                          isActionsCol && "sticky right-0 bg-background z-10",
+                          hoveredCol === cell.column.id && "bg-gray-100"
+                        )}
                       >
                         {flexRender(
                           cell.column.columnDef.cell,

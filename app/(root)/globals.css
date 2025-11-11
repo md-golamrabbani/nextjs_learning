@@ -120,3 +120,7 @@
     @apply bg-background text-foreground;
   }
 }
+
+[data-slot="table-container"] {
+  overflow: visible !important;
+}

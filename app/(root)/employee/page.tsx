@@ -1,4 +1,4 @@
-"use cache";
+// "use cache";
 
 import React from "react";
 import { cacheLife } from "next/dist/server/use-cache/cache-life";
@@ -28,7 +28,7 @@ const columns = [
 ];
 
 async function getEmployees(): Promise<EmployeesData> {
-  cacheLife("hours");
+  // cacheLife("hours");
 
   // Build full URL Dynamically
   const res = await fetch(`http://localhost:3000/api/employee`, {

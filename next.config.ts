@@ -1,10 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  cacheComponents: true,
-  experimental: {
-    useCache: true,
-  },
+  // cacheComponents: true,
+  // experimental: {
+  //   useCache: true,
+  // },
   /* config options here */
 };
 

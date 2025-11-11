@@ -1,4 +1,4 @@
-"use cache";
+// "use cache";
 
 import { cacheLife } from "next/dist/server/use-cache/cache-life";
 
@@ -9,7 +9,7 @@ interface Album {
 }
 
 async function getAlbums(): Promise<Album[]> {
-  cacheLife("hours"); // React experimental cache lifetime
+  // cacheLife("hours");
   const res = await fetch("https://jsonplaceholder.typicode.com/albums", {
     next: { revalidate: 60 }, // Revalidate every 60s (ISR)
   });
